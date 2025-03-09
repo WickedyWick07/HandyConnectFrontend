@@ -220,7 +220,7 @@ const Login = () => {
                         </button>
                         <p className="text-center m-4 text-xs">
                             Want an account ?
-                            <a className="cursor-pointer underline hover:text-purple-700 font-medium" onClick={toggleRegisterForm}>
+                            <a className="cursor-pointer underline ml-2 hover:text-purple-700 font-medium" onClick={toggleRegisterForm}>
                                 Register here
                             </a>
                         </p>
@@ -349,7 +349,7 @@ const Login = () => {
 
                         </button>
                         <p className="text-center m-4 text-xs">
-                            Already have an account?{' '}
+                            Already have an account?
                             <a className="cursor-pointer underline font-medium hover:text-purple-700" onClick={toggleRegisterForm}>
                                 Log in here
                             </a>
