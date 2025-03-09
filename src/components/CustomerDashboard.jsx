@@ -96,8 +96,6 @@ const CustomerDashboard = () => {
         }
     };
 
-    
-
 
     const handlePrevious = () => {
         if (currentPage > 0) {
@@ -194,13 +192,13 @@ const CustomerDashboard = () => {
                         Recommended Providers
                     </h1>
                     <div className='flex justify-between'>
-                        {serviceProviders.slice(0,3).map((providers, i) => (
+                        {serviceProviders.map((providers, i) => (
                             <div key={i} className='flex items-center flex-col justify-between w-auto m-4 p-3 space-y-3'>
                                 <div className='flex items-center'>
                                 <img
           src={providers.profilePicture?.startsWith('http') 
             ? providers.profilePicture 
-            : `${import.meta.env.VITE_IMAGES_API_URL}${providers.profilePicture}`}
+            : `http://localhost:5000${providers.profilePicture}`}
           alt={providers.companyName || 'Provider profile'}
           className="w-7 h-7 object-cover rounded-full"
         />                                    <div className='flex flex-col m-1'>

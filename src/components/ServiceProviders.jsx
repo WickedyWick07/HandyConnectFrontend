@@ -378,7 +378,7 @@ const ServiceProviders = () => {
                                     <img
           src={provider.profilePicture?.startsWith('http') 
             ? provider.profilePicture 
-            :  `${import.meta.env.VITE_IMAGES_API_URL}${provider.profilePicture}`}
+            : `http://localhost:5000${provider.profilePicture}`}
           alt={provider.companyName || 'Provider profile'}
           className="w-7 h-7 object-cover rounded-full"
         />
@@ -391,7 +391,7 @@ const ServiceProviders = () => {
                                     <div className="flex gap-2 items-center mb-2">
                                         <img src={wrench} alt="wrench" />
                                         <p className="text-xs text-gray-600">
-                                           I Offer:  {JSON.parse(provider.services[0]).join(', ')}
+                                            {JSON.parse(provider.services[0]).join(', ')}
                                         </p>
                                     </div>
                                     <div className="flex gap-2 items-center mb-2">
@@ -400,7 +400,7 @@ const ServiceProviders = () => {
                                     </div>
                                     <div className="flex gap-2 items-center mb-2">
                                         <img src={clock} alt="clock" />
-                                        <p className="text-xs text-gray-600">Years in service: {provider.yearsInService}</p>
+                                        <p className="text-xs text-gray-600">{provider.yearsInService}</p>
                                     </div>
                                 </div>
                                 <div className="mt-2 flex justify-between items-center">
