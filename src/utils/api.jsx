@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-    baseURL: process.env.API_URL|| 'http://localhost:5000',// Corrected key 'baseURL'
+    baseURL: import.meta.env.API_URL|| 'http://localhost:5000',// Corrected key 'baseURL'
     headers: {
         'Content-Type': 'application/json' ,
         // Corrected 'Content Type' to 'Content-Type'
@@ -41,7 +41,7 @@ api.interceptors.response.use(
                 
                 if (refreshToken) {
                     // Example: send the refresh token to refresh the access token
-                    const refreshResponse = await axios.post(`${process.env.API_URL}/auth/refresh-token` ||'http://localhost:5000/api/auth/refresh-token' , { refreshToken });
+                    const refreshResponse = await axios.post(`${import.meta.env.API_URL}/auth/refresh-token` ||'http://localhost:5000/api/auth/refresh-token' , { refreshToken });
                     
                     const { access_token } = refreshResponse.data;
                     localStorage.setItem('access_token', access_token);  // Store the new access token
