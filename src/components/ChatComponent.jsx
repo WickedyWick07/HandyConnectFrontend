@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { io } from 'socket.io-client';
 import api from '../utils/api';
 
@@ -6,12 +6,14 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
     const [socket, setSocket] = useState(null);
     const [message, setMessage] = useState('');
     const [messages, setMessages] = useState([]);
-
-    console.log(bookingId)
+    const [unreadMessages, setUnreadMessages] = useState(0);
+    const messagesContainerRef = useRef(null);
+    const messageSoundRef = useRef(new Audio('/message-notification.wav')); // Store audio locally
 
     useEffect(() => {
         // Connect to socket server
-        const newSocket = io('http://localhost:5000');
+        const socketUrl = import.meta.env.VITE_SOCKET_API_URL || 'http://localhost:5000';
+        const newSocket = io(socketUrl);
         setSocket(newSocket);
 
         // Register user
@@ -19,10 +21,32 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
             userId: currentUserId,
             userType: currentUserType, // 'customer' or 'provider'
         });
-
+        
+        // Request notification permission
+        if (Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+        
         // Listen for incoming messages
         newSocket.on('receive_message', (data) => {
-            setMessages((prev) => [...prev, data]);
+            // Only play sound and increment unread if message is from other user
+            if (data.senderId !== currentUserId) {
+                // Try to play sound (handle potential browser restrictions)
+                try {
+                    messageSoundRef.current.play().catch(err => console.log('Could not play notification sound', err));
+                } catch (error) {
+                    console.log('Audio play error:', error);
+                }
+                
+                // Increment unread messages counter
+                setUnreadMessages(prev => prev + 1);
+                
+                // Show notification if permitted
+                showNotification(data.message);
+            }
+            
+            // Add message to state
+            setMessages(prev => [...prev, data]);
         });
 
         // Listen for sent message confirmations
@@ -36,7 +60,17 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
         };
     }, [currentUserId, currentUserType]);
 
-    // Fetch existing messages for the chat room when the component mounts
+    // Show browser notification
+    const showNotification = (messageText) => {
+        if (Notification.permission === 'granted' && document.visibilityState !== 'visible') {
+            new Notification('New Message', {
+                body: messageText,
+                icon: '/chat-notification-icon.png', // Store icon locally
+            });
+        }
+    };
+
+    // Fetch existing messages for the chat room when component mounts
     useEffect(() => {
         const fetchMessages = async () => {
             try {
@@ -51,10 +85,22 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
         fetchMessages();
     }, [chatId]); // Refetch messages if chatId changes
 
+    // Scroll to bottom when new messages arrive
+    useEffect(() => {
+        if (messagesContainerRef.current) {
+            messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+        }
+    }, [messages]);
+
+    // Reset unread count when user actively views the messages
+    const handleMessagesView = () => {
+        setUnreadMessages(0);
+    };
+
     const sendMessage = async () => {
         if (message.trim() && socket) {
             const messageData = {
-                context:bookingId,
+                context: bookingId,
                 senderId: currentUserId,
                 receiverId: receiverId,
                 message: message.trim(),
@@ -65,7 +111,7 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
             socket.emit('private_message', messageData);
 
             try {
-                // Send message to backend (assuming API endpoint exists)
+                // Send message to backend
                 await api.post('/send-message', messageData);
             } catch (error) {
                 console.error('Error sending message:', error);
@@ -89,24 +135,46 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
             {/* Header */}
             <div className="bg-blue-600 text-white py-4 px-6 flex items-center justify-between">
                 <h2 className="text-lg font-semibold">Chat</h2>
-                <span className="text-sm">{currentUserType === 'service provider' ? 'Service Provider' : 'Customer'}</span>
+                <div className="flex items-center">
+                    {unreadMessages > 0 && (
+                        <span className="inline-flex items-center justify-center px-2 py-1 mr-2 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
+                            {unreadMessages}
+                        </span>
+                    )}
+                    <span className="text-sm">{currentUserType === 'service provider' ? 'Service Provider' : 'Customer'}</span>
+                </div>
             </div>
 
             {/* Messages Container */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div 
+                ref={messagesContainerRef}
+                className="flex-1 overflow-y-auto p-4 space-y-4"
+                onClick={handleMessagesView} // Reset unread count when clicked
+                onScroll={handleMessagesView} // Reset unread count when scrolled
+            >
                 {messages
-                    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)) // Sort messages by `createdAt`
+                    .sort((a, b) => new Date(a.createdAt || a.timestamp) - new Date(b.createdAt || b.timestamp))
                     .map((msg, index) => (
                         <div
                             key={index}
                             className={`flex ${msg.senderId === currentUserId ? 'justify-end' : 'justify-start'}`}
                         >
                             <div
-                                className={`max-w-xs px-4 py-2 rounded-lg shadow ${msg.senderId === currentUserId ? 'bg-blue-500 text-white rounded-br-none' : 'bg-gray-300 text-gray-900 rounded-bl-none'}`}
+                                className={`max-w-xs px-4 py-2 rounded-lg shadow ${
+                                    msg.senderId === currentUserId 
+                                        ? 'bg-blue-500 text-white rounded-br-none' 
+                                        : 'bg-gray-300 text-gray-900 rounded-bl-none'
+                                }`}
                             >
                                 <p>{msg.message}</p>
                                 <small className="text-xs block mt-1 text-right opacity-75">
-                                    {msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Now"}
+                                    {(msg.createdAt || msg.timestamp) 
+                                        ? new Date(msg.createdAt || msg.timestamp).toLocaleTimeString([], { 
+                                            hour: '2-digit', 
+                                            minute: '2-digit' 
+                                        }) 
+                                        : "Now"
+                                    }
                                 </small>
                             </div>
                         </div>
