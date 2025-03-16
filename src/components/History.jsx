@@ -41,9 +41,6 @@ const History = () => {
         getBookings();
     }, [user]);
 
-    const viewBooking = (booking) => {
-        navigate('/view-customer-booking', { state: { booking } });
-    };
 
     const handlePrevious = () => {
         if (currentPage > 1) {
@@ -73,7 +70,7 @@ const History = () => {
                 </div>
                 <div>
                     <div className="flex flex-col gap-4">
-                        {paginatedBookings.map((booking) => (
+                        {paginatedBookings.sort((a,b) => a.booking.date - b.booking.date).map((booking) => (
                             <div className="bg-white p-4 mx-4 rounded shadow-md" key={booking._id}>
                                 <div className="flex gap-4 items-center">
                                     <div>
