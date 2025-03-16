@@ -82,9 +82,6 @@ const ServiceProviderDashboard = () => {
                     </div>
                     <div className='flex justify-end gap-4'>
                         <BellAlertIcon className='size-8' />
-                        <div>
-                            <img src={profilePicture} alt="" className='size-8 object-cover rounded-full' />
-                        </div>
                     </div>
                 </section>
 
@@ -146,7 +143,7 @@ const ServiceProviderDashboard = () => {
                             </tr>
                         </thead>
                         <tbody className=''>
-                            {sortedBookings.length > 0 && sortedBookings.some(booking => booking.status === 'pending') ? sortedBookings.slice(0, 3).map((booking, index) => (
+                            {sortedBookings.length > 0 && sortedBookings.some(booking => booking.status === 'pending') ? sortedBookings.filter((booking) => booking.status === 'pending').slice(0, 3).map((booking, index) => (
                                 <tr key={index} >
                                     <td className='p-2 text-semibold text-xs text-center flex my-4 items-center gap-3'>
                                         {customers.find(customer => customer.id === booking.customerId)?.firstName} {customers.find(customer => customer.id === booking.customerId)?.lastName}
@@ -192,16 +189,14 @@ const ServiceProviderDashboard = () => {
                         {activeJobs.map((job, index) => (
                             <div key={index} className='flex items-center justify-between p-4'>
                                 <div className='flex items-center gap-4'>
+                                  
                                     <div>
-                                        <img src={job.Image} alt="" className='size-7 object-cover rounded-full' />
-                                    </div>
-                                    <div>
-                                        <h1 className='font-medium'>{job.service}</h1>
+                                        <h1 className='font-medium'><span className='text-black font-semibold'>Service: </span>{job.service}</h1>
                                         <p className='text-xs'>{job.location}</p>
                                     </div>
                                 </div>
                                 <div className='bg-fuchsia-400 rounded-full p-2'>
-                                    <p className='text-xs font-medium text-fuchsia-900'>{job.status}</p>
+                                    <p className='text-xs font-medium text-fuchsia-900'><span className='text-black font-semibold'>Status: </span>{job.status}</p>
                                 </div>
                             </div>
                         ))}
