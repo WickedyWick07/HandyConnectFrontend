@@ -160,7 +160,7 @@ const CustomerDashboard = () => {
                         Active Bookings
                     </h1>
                     <div className='p-4'>
-                        {bookings.length > 0  ? bookings.sort((a,b) => a.date -  b.date).slice(0,3).map((booking, i) => (
+                        {bookings.length > 0  ? bookings.filter((booking) => booking.status === 'pending').sort((a,b) => a.date -  b.date).slice(0,3).map((booking, i) => (
                             <div key={i} className='border border-gray-100 my-2 rounded'>
                                 <div className='flex items-center justify-between'>
                                     <div className='flex items-center'>
