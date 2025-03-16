@@ -1,6 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { io } from 'socket.io-client';
 import api from '../utils/api';
+import notificationSound from '../../src/assets/notification_sound.mp3';
+import notificationIcon from '../../src/assets/Icons/alarm-fill.svg'
 
 const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, bookingId }) => {
     const [socket, setSocket] = useState(null);
@@ -12,7 +14,7 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
 
     useEffect(() => {
         // Initialize audio object when component mounts
-        messageSoundRef.current = new Audio('/message-notification.wav');
+        messageSoundRef.current = new Audio(notificationSound);
         
         // Connect to socket server
         const socketUrl = import.meta.env.VITE_SOCKET_API_URL || 'http://localhost:5000';
@@ -83,7 +85,7 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
             try {
                 const notification = new Notification('New Message', {
                     body: messageText,
-                    icon: '/chat-notification-icon.png',
+                    icon: notificationIcon,
                     tag: 'chat-message', // Prevents multiple notifications from stacking
                 });
                 
