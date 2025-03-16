@@ -165,57 +165,66 @@ const CustomerDashboard = () => {
                             <div key={i} className='border border-gray-100 my-2 rounded'>
                                 <div className='flex items-center justify-between'>
                                     <div className='flex items-center'>
-                                        {/*<div className='p-2 m-2 bg-purple-300 rounded-full w-8'>
+                                        <div className='p-2 m-2 bg-purple-300 rounded-full w-8'>
                                             <img className='h-5 w-6' src={booking.Icon} />
-                                        </div>*/}
+                                        </div>
                                         <div className='flex flex-col'>
                                             <h1 className='font-medium text-sm'>{booking.service}</h1>
                                             <p className='text-xs font-light'>Booked for: {booking.date} at {booking.time}</p>
                                         </div>
-                                    </div>
+                                        </div>
 
-                                    <div className='bg-yellow-400 px-3 py-2 rounded-full text-xs font-semibold '>
-                                        <p>{booking.status}</p>
+                                        <div className='bg-yellow-400 px-3 py-2 rounded-full text-xs font-semibold '>
+                                            <p>{booking.status}</p>
+                                        </div>
+                                        <div className='m-4 hover:bg-purple-700 border border-purple-700 rounded'>
+                                            <button onClick={() => viewBooking(booking)} className='text-xs hover:text-white font-medium text-purple-700 px-4 py-1'>
+                                                View Details
+                                            </button>
+                                        </div>
+                                        </div>
+                                        </div>
+                                        )) : <p className='text-5xl text-gray-200 text-center py-10 font-bold'>No Bookings Made</p>}
+                                        </div>
+                                        </section>
+                                        <section className='bg-white m-4 rounded flex flex-col'>
+                                            <h1 className='text-black font-bold text-md px-4 py-2'>
+                                                Recommended Providers
+                                            </h1>
+                                            <div className='flex justify-between'>
+                                                {serviceProviders.slice(0, 3).map((providers, i) => (
+                                                    <div key={i} className='flex items-center flex-col justify-between w-auto m-4 p-3 space-y-3'>
+                                                        <div className='flex items-center'>
+                                                            <img
+                                                                src={providers.profilePicture?.startsWith('http')
+                                                                    ? providers.profilePicture
+                                                                    : `${VITE_IMAGES_API_URL}${providers.profilePicture}` || `https://localhost:5000${providers.profilePicture}`}
+                                                                alt={providers.companyName || 'Provider profile'}
+                                                                className="w-7 h-7 object-cover rounded-full"
+                                                                onError={(e) => {
+                                                                    e.target.onerror = null;
+                                                                    e.target.src = `https://localhost:5000${providers.profilePicture}`;
+                                                                }}
+                                                            />
+                                                            <div className='flex flex-col m-1'>
+                                                                <h1 className='text-sm font-medium'>
+                                                                    {providers.companyName}
+                                                                </h1>
+                                                                {/*<div className='flex items-center'>
+                                                                    {[...Array(Math.floor(providers.Rating))].map((_, i) => (
+                                                                        <StarIcon key={i} className='text-yellow-500 size-3' />
+                                                                    ))}
+                                                                    {providers.Rating % 1 !== 0 && (<OutlineStarIcon className='size-3 text-yellow-500' />)}
+                                                                    <p className='text-xs ml-1'>{providers.Rating}</p>
+                                                                </div>*/}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </section>
                                     </div>
-                                    <div className='m-4  hover:bg-purple-700 border border-purple-700 rounded'>
-                                        <button onClick={() => viewBooking(booking)}  className='text-xs hover:text-white font-medium text-purple-700 px-4 py-1'>
-                                            View Details
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        )): <p className='text-5xl text-gray-200 text-center py-10 font-bold'>No Bookings Made</p> }
-                    </div>
-                </section>
-                <section className='bg-white m-4 rounded flex flex-col'>
-                    <h1 className='text-black font-bold text-md px-4 py-2'>
-                        Recommended Providers
-                    </h1>
-                    <div className='flex justify-between'>
-                        {serviceProviders.map((providers, i) => (
-                            <div key={i} className='flex items-center flex-col justify-between w-auto m-4 p-3 space-y-3'>
-                                <div className='flex items-center'>
-                                <img
-          src={providers.profilePicture?.startsWith('http') 
-            ? providers.profilePicture 
-            : `http://localhost:5000${providers.profilePicture}`}
-          alt={providers.companyName || 'Provider profile'}
-          className="w-7 h-7 object-cover rounded-full"
-        />                                    <div className='flex flex-col m-1'>
-                                        <h1 className='text-sm font-medium'>
-                                            {providers.companyName}
-                                        </h1>
-                                        {/*<div className='flex items-center'>
-                                            {[...Array(Math.floor(providers.Rating))].map((_, i) => (
-                                                <StarIcon key={i} className='text-yellow-500 size-3' />
-                                            ))}
-                                            {providers.Rating % 1 !== 0 && (<OutlineStarIcon className='size-3 text-yellow-500' />)}
-                                            <p className='text-xs ml-1'>{providers.Rating}</p>
-                                        </div>*/}
-                                    </div>
-                                </div>
-                                <p className='text-xs'>{providers.description}</p>
-                                
+                                </section>
                             </div>
                         ))}
                     </div>
