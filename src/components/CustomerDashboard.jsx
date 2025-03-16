@@ -157,10 +157,41 @@ const CustomerDashboard = () => {
                 </section>
                 <section className='bg-white m-4 rounded'>
                     <h1 className='text-black font-bold text-md px-4 py-2'>
-                        Active Bookings
+                       Pending Bookings
                     </h1>
                     <div className='p-4'>
                         {bookings.length > 0  ? bookings.filter((booking) => booking.status === 'pending').sort((a,b) => a.date -  b.date).slice(0,3).map((booking, i) => (
+                            <div key={i} className='border border-gray-100 my-2 rounded'>
+                                <div className='flex items-center justify-between'>
+                                    <div className='flex items-center'>
+                                        {/*<div className='p-2 m-2 bg-purple-300 rounded-full w-8'>
+                                            <img className='h-5 w-6' src={booking.Icon} />
+                                        </div>*/}
+                                        <div className='flex flex-col'>
+                                            <h1 className='font-medium text-sm'>{booking.service}</h1>
+                                            <p className='text-xs font-light'>Booked for: {booking.date} at {booking.time}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className='bg-yellow-400 px-3 py-2 rounded-full text-xs font-semibold '>
+                                        <p>{booking.status}</p>
+                                    </div>
+                                    <div className='m-4  hover:bg-purple-700 border border-purple-700 rounded'>
+                                        <button onClick={() => viewBooking(booking)}  className='text-xs hover:text-white font-medium text-purple-700 px-4 py-1'>
+                                            View Details
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )): <p className='text-5xl text-gray-200 text-center py-10 font-bold'>No Bookings Made</p> }
+                    </div>
+                </section>
+                <section className='bg-white m-4 rounded'>
+                    <h1 className='text-black font-bold text-md px-4 py-2'>
+                        Accepted Bookings
+                    </h1>
+                    <div className='p-4'>
+                        {bookings.length > 0  ? bookings.filter((booking) => booking.status === 'accepted').sort((a,b) => a.date -  b.date).slice(0,3).map((booking, i) => (
                             <div key={i} className='border border-gray-100 my-2 rounded'>
                                 <div className='flex items-center justify-between'>
                                     <div className='flex items-center'>
