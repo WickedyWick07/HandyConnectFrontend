@@ -376,12 +376,16 @@ const ServiceProviders = () => {
                                 <div className="flex flex-col items-center">
                                     <div className="flex items-center gap-2">
                                     <img
-          src={provider.profilePicture?.startsWith('http') 
-            ? provider.profilePicture 
-            : `http://localhost:5000${provider.profilePicture}`}
-          alt={provider.companyName || 'Provider profile'}
-          className="w-7 h-7 object-cover rounded-full"
-        />
+                                                                src={provider.profilePicture?.startsWith('http')
+                                                                    ? provider.profilePicture
+                                                                    : `${import.meta.env.VITE_IMAGES_API_URL}${provider.profilePicture}` || `https://localhost:5000${provider.profilePicture}`}
+                                                                alt={provider.companyName || 'Provider profile'}
+                                                                className="w-7 h-7 object-cover rounded-full"
+                                                                onError={(e) => {
+                                                                    e.target.onerror = null;
+                                                                    e.target.src = `https://localhost:5000${provider.profilePicture}`;
+                                                                }}
+                                                            />
                                         <h1 className="text-md font-semibold">
                                             {provider.companyName}
                                         </h1>
