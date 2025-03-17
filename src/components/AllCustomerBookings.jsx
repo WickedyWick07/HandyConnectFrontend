@@ -3,11 +3,14 @@ import AuthContext from "../context/AuthContext";
 import CustomerHeader from "../components/CustomerHeader";
 import api from "../utils/api";
 import { useNavigate } from "react-router-dom";
+import LoadingPage from '../components/LoadingPage';
 
 const AllCustomerBookings = () => {
     const [bookings, setBookings] = useState([]);
-    const { fetchCurrentUser } = useContext(AuthContext);
     const [user, setUser] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const { fetchCurrentUser } = useContext(AuthContext);
     const navigate = useNavigate();
 
     // Fetch current user
@@ -19,6 +22,7 @@ const AllCustomerBookings = () => {
                 setUser(response);
             } catch (err) {
                 console.error("Error fetching the user", err.stack);
+                setError("Error fetching user details.");
             }
         };
         fetchUser();
@@ -29,13 +33,17 @@ const AllCustomerBookings = () => {
         if (!user) return;
 
         const getBookings = async () => {
+            setLoading(true);
             try {
                 console.log("Sending user:", user);
                 const res = await api.post("/fetch-customer-bookings", { user });
                 console.log("Fetched bookings:", res.data.data);
                 setBookings(res.data.data);
+                setLoading(false);
             } catch (error) {
                 console.error("There was an error fetching bookings", error);
+                setError("Error fetching bookings.");
+                setLoading(false);
             }
         };
 
@@ -46,15 +54,24 @@ const AllCustomerBookings = () => {
         navigate("/view-customer-booking", { state: { booking } });
     };
 
-    const pendingBookings = bookings.filter((booking) => booking.status === 'accepted')
-    console.log(pendingBookings)
+    const pendingBookings = bookings.filter((booking) => booking.status === 'accepted');
+    console.log(pendingBookings);
+
+    if (loading) return <LoadingPage />;
+    if (error) return (
+        <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+            <div className="bg-red-50 p-4 rounded-lg text-red-500">
+                {error}
+            </div>
+        </div>
+    );
 
     return (
         <div>
             <CustomerHeader />
             <div className="p-4">
                 {pendingBookings.length === 0 ? (
-                    <p className="text-center text-gray-200 text-5xl text-bold py-10">No bookings found.</p>
+                    <p className="text-center text-gray-200 text-5xl font-bold py-10">No bookings found.</p>
                 ) : (
                     pendingBookings.map((booking, i) => (
                         <div key={i} className="border border-gray-100 p-4 my-2 rounded shadow-md">

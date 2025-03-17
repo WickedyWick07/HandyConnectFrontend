@@ -12,7 +12,7 @@ import 'leaflet/dist/leaflet.css'
 import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
-
+import LoadingPage from '../components/LoadingPage'
 
 // Fix for default marker icons in Leaflet
 delete L.Icon.Default.prototype._getIconUrl
@@ -59,6 +59,7 @@ const ServiceProviders = () => {
     const [searchRadius, setSearchRadius] = useState(30) // radius in km
     const [showMap, setShowMap] = useState(false)
     const mapRef = useRef(null)
+    const [loading , setLoading] = useState(true)
 
     const getUserLocation = () => {
         return new Promise((resolve, reject) => {
@@ -93,22 +94,28 @@ const ServiceProviders = () => {
     useEffect(() => {
         const fetchAllProviders = async () => {
             try {
+                setLoading(true)
                 const response = await api.get('/fetch-service-providers')
                 console.log(response.data.data)
                 setServiceProviders(response.data.data)
                 setFilteredProviders(response.data.data)
             } catch (error) {
                 console.error("Error fetching all providers:", error)
+            } finally {
+                setLoading(false)
             }
         }
 
         const fetchProvidersByService = async () => {
             try {
+                setLoading(true)
                 const response = await api.post('/fetch-by-service', { service })
                 setServiceProviders(response.data.data)
                 setFilteredProviders(response.data.data)
             } catch (error) {
                 console.error('Error fetching providers by service:', error)
+            } finally{ 
+                setLoading(false)
             }
         }
 
@@ -228,12 +235,19 @@ const ServiceProviders = () => {
         setFilteredProviders(filtered);
     }, [searchQuery, selectedService, serviceProviders]);
 
+    if(loading) return <LoadingPage />
+    
     return (
         <div className="bg-gray-100 min-h-screen">
             <main className="bg-gray-100 mx-auto flex-col flex justify-center">
                 <CustomerHeader />
                 
                 {/* Search Section */}
+               {  serviceProviders.length === 0 ?  (
+                <div>
+                <p className="text-center text-gray-200 text-5xl font-bold py-10">No service providers found.</p>
+                </div>
+               ) : (
                 <section className="p-4">
                     <div className="flex justify-center gap-4 items-center border rounded bg-white p-4 flex-wrap">
                         <div>
@@ -299,7 +313,7 @@ const ServiceProviders = () => {
                             )}
                         </div>
                     </div>
-                </section>
+                </section>)}
 
                 {/* Map Section */}
                 {showMap && userLocation && (

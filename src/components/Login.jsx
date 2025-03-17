@@ -2,6 +2,7 @@ import  { useState, useContext } from 'react';
 import loginImg from '../assets/login-pic.jpg';
 import AuthContext from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import LoadingPage from './LoadingPage';
 
 const Login = () => {
     const navigate = useNavigate();
@@ -22,6 +23,7 @@ const Login = () => {
         latitude: null
     });
     const [loading, setLoading] = useState(false)
+
 
     const toggleRegisterForm = () => {
         setOpenRegisterForm((prevState) => !prevState);
@@ -359,6 +361,7 @@ const Login = () => {
                     </form>
                 </div>
             )}
+
         </div>
     );
 };

@@ -3,7 +3,7 @@ import AuthContext from '../context/AuthContext';
 import api from '../utils/api';
 import ProviderHeader from './ProviderHeader';
 import { Calendar, Clock, MapPin, AlertCircle } from 'lucide-react';
-
+import LoadingPage from './LoadingPage';
 
 const ProviderHistory = () => {
     const { fetchCurrentUser } = useContext(AuthContext);
@@ -26,28 +26,27 @@ const ProviderHistory = () => {
     }, []);
 
     useEffect(() => {
-        setLoading(true)
         const fetchProviderBookings = async () => {
+            if (!user) return;
+            setLoading(true); // Start loading when fetching provider bookings
             try {
                 const res = await api.post('/fetch-provider-bookings', { user });
                 console.log('provider bookings:', res.data.bookings);
                 setBookings(res.data.bookings);
             } catch (error) {
+                setError('Error fetching provider bookings');
                 console.error('Error fetching provider bookings:', error);
+            } finally {
+                setLoading(false); // End loading when finished
             }
         };
 
         if (user) {
             fetchProviderBookings();
         }
-
-        setLoading(false)
     }, [user]);
-    if (loading) return (
-        <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-        </div>
-    );
+
+    if (loading) return <LoadingPage />; // Show loading page while loading data
 
     if (error) return (
         <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -113,7 +112,7 @@ const ProviderHistory = () => {
                                             <Clock className="w-5 h-5 text-blue-500 ml-4" />
                                             <span className="text-gray-700">{booking.time}</span>
                                         </div>
-                                        
+                                      
                                         <div className="flex items-start gap-2">
                                             <MapPin className="w-5 h-5 text-blue-500 mt-1" />
                                             <span className="text-gray-700 flex-1">{booking.location}</span>

@@ -28,7 +28,7 @@ const ProviderSidemenu = () => {
                       <img src={review} className='w-4 h-4 mr-2' />
                       History
                   </a></li>
-                  <li><a href="#contact" className=" py-2 px-4 rounded hover:bg-purple-500 hover:text-white flex items-center text-sm">
+                  <li><a href="/settings" className=" py-2 px-4 rounded hover:bg-purple-500 hover:text-white flex items-center text-sm">
                       <img src={settings} className='w-4 h-4 mr-2' />
                       Settings
                   </a></li>
