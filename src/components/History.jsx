@@ -12,6 +12,7 @@ const History = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [endIndex, setEndIndex] = useState(5); // Number of bookings to display per page
     const [loading, setLoading] = useState(true); // Added loading state
+    const [error, setError] = useState(null);
 
     useEffect(() => {
         const fetchUser = async () => {
@@ -22,6 +23,7 @@ const History = () => {
                 setUser(response);
             } catch (err) {
                 console.error("Error fetching the user", err.stack);
+                setError(err)
             } finally {
                 setLoading(false);
             }
@@ -137,6 +139,11 @@ const History = () => {
                                 Next
                             </button>
                         </div>
+                    </div>
+                )}
+                {error && (
+                    <div>
+                        <p className="text-red-500 text-xl text-center">{error}</p>
                     </div>
                 )}
             </main>

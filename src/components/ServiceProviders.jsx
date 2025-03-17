@@ -60,6 +60,7 @@ const ServiceProviders = () => {
     const [showMap, setShowMap] = useState(false)
     const mapRef = useRef(null)
     const [loading , setLoading] = useState(true)
+    const [showButtons, setShowButtons] = useState(true)
 
     const getUserLocation = () => {
         return new Promise((resolve, reject) => {
@@ -109,11 +110,13 @@ const ServiceProviders = () => {
         const fetchProvidersByService = async () => {
             try {
                 setLoading(true)
+                setShowButtons(false)
                 const response = await api.post('/fetch-by-service', { service })
                 setServiceProviders(response.data.data)
                 setFilteredProviders(response.data.data)
             } catch (error) {
                 console.error('Error fetching providers by service:', error)
+                setShowButtons(true)
             } finally{ 
                 setLoading(false)
             }
@@ -139,6 +142,7 @@ const ServiceProviders = () => {
             const location = await getUserLocation()
             setUserLocation(location)
             setShowNearbyOnly(true)
+            setShowButtons(false)
             setMapCenter([location.latitude, location.longitude])
 
             let filtered = serviceProviders
@@ -196,6 +200,7 @@ const ServiceProviders = () => {
         setFilteredProviders(serviceProviders)
         setCurrentPage(0)
         setShowMap(false)
+        setShowButtons(true)
     }
 
     const viewProvider = async (provider) => {
@@ -435,7 +440,7 @@ const ServiceProviders = () => {
                 </section>
 
 
-                <div className="flex justify-center p-4">
+                {showButtons && <div className="flex justify-center p-4">
                     <button
                         disabled={currentPage === 0}
                         onClick={handlePrevious}
@@ -452,7 +457,7 @@ const ServiceProviders = () => {
                         Load Next
                         <ArrowRightCircleIcon className="size-3 font-bold mx-auto" />
                     </button>
-                </div>
+                </div>}
             </main>
         </div>
     );
