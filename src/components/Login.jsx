@@ -23,6 +23,9 @@ const Login = () => {
         latitude: null
     });
     const [loading, setLoading] = useState(false)
+    const [locationVerified, setLocationVerified] = useState(false);
+    const [locationLoading, setLocationLoading] = useState(false)
+    const [locationError, setLocationError] = useState('');
 
 
     const toggleRegisterForm = () => {
@@ -30,11 +33,26 @@ const Login = () => {
         setOpenLoginForm((prevState) => !prevState);
     };
 
-    const getCoordinate = async (location) => {
+    async function getCoordinate(location) {
+                setLocationLoading(true);
+        setLocationError('');
+        setLocationVerified(false); // Reset verification state
+        
+        if (!location || location.trim() === '') {
+            setLocationError('Please enter a location');
+            setLocationLoading(false);
+            return null;
+        }
+        
         const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location)}&format=json`;
     
         try {
             const response = await fetch(url);
+            
+            if (!response.ok) {
+                throw new Error(`Network response was not ok: ${response.status}`);
+            }
+            
             const data = await response.json();
     
             if (data.length > 0) {
@@ -43,18 +61,21 @@ const Login = () => {
                     latitude: data[0].lat,
                 };
                 setCoordinates(newCoords);
-                return newCoords;  // Return coordinates immediately
+                setLocationVerified(true); // Mark as verified
+                setLocationLoading(false);
+                return newCoords;
             } else {
-                throw new Error('No data found for the given location');
+                setLocationError('No location found. Please try a different address or city.');
+                setLocationLoading(false);
+                return null;
             }
         } catch (error) {
-            console.error(error);
-            setError('Failed to fetch coordinates, please try again.');
-            return { longitude: null, latitude: null };  // Ensure function always returns something
+            console.error('Error fetching coordinates:', error);
+            setLocationError('Failed to fetch coordinates: ' + error.message);
+            setLocationLoading(false);
+            return null;
         }
-    };
-    
-    const newUserFirstTimeLogIn = async () => {
+    };    const newUserFirstTimeLogIn = async () => {
         try {
             const response = await login(email, password)
             if(response.status === 200 && response.data.user.role === 'service provider'){
@@ -67,6 +88,8 @@ const Login = () => {
             
         }
     }
+
+    if(loading) return <LoadingPage /> 
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -93,46 +116,39 @@ const Login = () => {
         setError('');
     
         try {
+            // Set the role first
             const userRole = serviceProvider ? 'service provider' : 'customer';
             setRole(userRole);
     
+            // Check password match
             if (password !== confirmPassword) {
                 setError('Passwords do not match');
                 setLoading(false);
                 return;
             }
     
-            let coords = { longitude: null, latitude: null };
-    
-            if (location) {
-                const fetchedCoords = await getCoordinate(location);
-                if (fetchedCoords) {
-                    coords = fetchedCoords; 
+            // Handle location verification
+            let coords = null;
+            
+            if (!locationVerified) {
+                // If location is not verified yet, verify it now
+                coords = await getCoordinate(location);
+                if (!coords) {
+                    setError('Please verify your location before registering');
+                    setLoading(false);
+                    return;
                 }
-                setCoordinates(coords);
-                console.log(coordinates)
+            } else {
+                // Use already verified coordinates
+                coords = coordinates;
             }
     
-            // Ensure coordinates are valid
-            if (!coords.longitude || !coords.latitude) {
-                setError('Invalid location, please check the coordinates.');
-                setLoading(false);
-                return;
-            }
-    
-            console.log('Attempting registration with:', {
-                email,
-                location,
-                passwordLength: password.length,
-                role: role,
-                hasCoordinates: !!(coords.longitude && coords.latitude),
-            });
-    
+            // Register the user
             const response = await register(
                 firstName,
                 lastName,
                 email,
-                role,
+                userRole, // Use the variable we set above
                 password,
                 location,
                 coords.longitude,
@@ -140,34 +156,35 @@ const Login = () => {
             );
     
             if (response.success) {
-                console.log('Registration response:', response);
-    
-                if (serviceProvider) {
-                    const loginAttempt = await newUserFirstTimeLogIn(email, password);
-                    if (loginAttempt.status === 200) {
-                        console.log('Successfully logged user in');
-                        navigate('/provider-signup');
-                    }
+                // Handle successful registration
+                if (userRole === 'service provider') {
+                    // Log in and redirect to provider signup
+                    await login(email, password);
+                    navigate('/provider-signup');
                 } else {
-                    const loginAttempt = await login(email, password);
-                    if (loginAttempt.status === 200) {
-                        console.log('Successfully logged user in');
-                        navigate('/dashboard/customer');
-                    }
+                    // Log in and redirect to customer dashboard
+                    await login(email, password);
+                    navigate('/dashboard/customer');
                 }
             }
         } catch (error) {
-            console.error(error.message);
+            console.error('Registration error:', error);
             setError('Registration failed: ' + error.message);
         } finally {
             setLoading(false);
         }
     };
-    
-
     const toggleServiceProvider = (e) => {
         e.preventDefault();
         setServiceProvider((prevState) => !prevState);
+    };
+
+    const validateLocation = async () => {
+        if (!location) {
+            setLocationError('Please enter a location');
+            return;
+        }
+        await getCoordinate(location);
     };
 
     return (
@@ -310,21 +327,43 @@ const Login = () => {
                                 className="mt-1 p-2 border bg-gray-300 rounded w-full"
                             />
                         </div>
-                        <div className="mb-4">
-                            <label htmlFor="location" className="block text-sm font-medium text-gray-700">
-                                Location
-                            </label>
-                            <input
-                                onChange={(e) => setLocation(e.target.value)}
-                                value={location}
-                                type="text"
-                                id="location"
-                                name="location"
-                                required
-                                placeholder="(Address, City, Country)"
-                                className="mt-1 p-2 border bg-gray-300 rounded w-full"
-                            />
-                        </div>
+                        <div className="mb-4 relative">
+    <label htmlFor="location" className="block text-sm font-medium text-gray-700">
+        Location
+    </label>
+    <div className="flex">
+        <input
+            onChange={(e) => {
+                setLocation(e.target.value);
+                setLocationVerified(false); // Reset verification when location changes
+            }}
+            value={location}
+            type="text"
+            id="location"
+            name="location"
+            required
+            placeholder="(Address, City, Country)"
+            className="mt-1 p-2 border bg-gray-300 rounded w-full"
+        />
+        <button
+            type="button"
+            onClick={validateLocation}
+            disabled={locationLoading || !location}
+            className="ml-2 px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
+        >
+            {locationLoading ? 'Verifying...' : 'Verify'}
+        </button>
+    </div>
+    {locationVerified && (
+        <p className="text-green-600 text-xs mt-1">✓ Location verified successfully</p>
+    )}
+    {locationError && (
+        <p className="text-red-500 text-xs mt-1">{locationError}</p>
+    )}
+    {!locationVerified && !locationError && location && (
+        <p className="text-amber-500 text-xs mt-1">Please verify your location</p>
+    )}
+</div>
                        
                         <div>
                             <p className="text-xs font-semibold text-gray-800 mb-1 underline">Are you a service provider?</p>
@@ -361,6 +400,7 @@ const Login = () => {
                     </form>
                 </div>
             )}
+
 
         </div>
     );
