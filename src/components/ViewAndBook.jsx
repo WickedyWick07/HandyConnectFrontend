@@ -1,4 +1,3 @@
-import React from 'react';
 import CustomerHeader from './CustomerHeader';
 import { StarIcon } from '@heroicons/react/24/solid';
 import mapIcon from '../assets/Icons/pin-map-fill.svg';
@@ -23,17 +22,17 @@ const ViewAndBook = () => {
     useEffect(() => {
         const fetchUser = async () => {
             try {
-                const res = await fetchCurrentUser()
-                console.log('user:',res)
-                setUser(res)
-                console.log(provider)
-            } catch(err) {
-                console.error('Error fetching the user', err)
+                const res = await fetchCurrentUser();
+                console.log('user:', res);
+                setUser(res);
+                console.log(provider);
+            } catch (err) {
+                console.error('Error fetching the user', err);
             }
-        }
+        };
 
-        fetchUser()
-    }, [])
+        fetchUser();
+    }, []);
 
 
     if(provider){
@@ -149,11 +148,8 @@ const ViewAndBook = () => {
                                 <div>
                                     <h1 className="font-medium mb-2">About</h1>
                                     <p className="text-xs text-gray-800 font-normal">{provider.description}</p>
-                                    <div className="grid grid-cols-2">
-                                        <p className="text-xs text-gray-800 font-normal">
-                                            <img src={mapIcon} className="size-4 inline" alt="Location" />
-                                            Location not specified
-                                        </p>
+                                    <div className="flex gap-2 items-center mt-2">
+                                        
                                         <div className="flex gap-2 items-center">
                                             {true && ( // Replace true with verification condition
                                                 <div className="flex size-3 rounded-full animate-pulse bg-green-700"></div>
@@ -218,7 +214,7 @@ const ViewAndBook = () => {
                             </div>
                             {/* Booking Form */}
                             <div>
-                                <form className="bg-white p-4 m-4 rounded shadow-md" onSubmit={handleSubmit}>
+                                <form className="bg-white p-4 m-4 rounded shadow-md w-80" onSubmit={handleSubmit}>
                                     <h1 className="font-bold text-lg mb-4">Book a service</h1>
                                     <div className="mb-4">
                                         <label
@@ -332,11 +328,34 @@ const ViewAndBook = () => {
                         </div>
                     )}
 
-                    <section>
-                        {/*
-                        Embed map
-                        */ }
-                    </section>
+           
+                
+<section className="bg-white p-6 m-4 rounded shadow-md">
+                    <h1 className="text-black text-center font-semibold text-lg mb-2">
+                        Certifications
+                    </h1>
+                    <p className='text-sm text-gray-600 text-center font-medium mb-4'>{provider.companyName} has the following certifications: </p>
+                    <div className="grid grid-cols-3 gap-4">
+                        {provider.certifications?.map((cert, index) => (
+                            <img
+                                key={index}
+                                src={`${import.meta.env.VITE_IMAGES_API_URL}${cert}`}
+                                alt={`Certification ${index + 1}`}
+                                className="object-cover w-60 h-60 border rounded"
+                                onError={(e) => {
+                                    e.target.onerror = null;
+                                    e.target.src = "/default-placeholder.png"; // Fallback image
+                                }}
+                            />
+                        ))}
+                    </div>
+                    {(!provider.certifications || provider.certifications.length === 0) && (
+                        <p className="text-gray-600 text-center">No certifications available.</p>
+                    )}
+                </section>
+
+
+                 
             </main>
         </div>
     );

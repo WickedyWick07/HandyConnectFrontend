@@ -414,22 +414,19 @@ const ServiceProviders = () => {
                                     <div className="flex gap-2 items-center mb-2">
                                         <img src={wrench} alt="wrench" />
                                         <p className="text-xs text-gray-600">
-                                            {JSON.parse(provider.services[0]).join(', ')}
+                                            
+                                            {JSON.parse(provider.services[0]).slice(0,3).join(', ')}
+                                              
                                         </p>
                                     </div>
-                                    <div className="flex gap-2 items-center mb-2">
-                                        <img src={pin} alt="pin" />
-                                        <p className="text-xs text-gray-600">{provider.location}</p>
-                                    </div>
+                                    
                                     <div className="flex gap-2 items-center mb-2">
                                         <img src={clock} alt="clock" />
-                                        <p className="text-xs text-gray-600">{provider.yearsInService}</p>
+                                        <p className="text-xs text-gray-600">Years in service: {provider.yearsInService}</p>
                                     </div>
                                 </div>
                                 <div className="mt-2 flex justify-between items-center">
-                                    <p className="text-xs font-medium text-purple-600">
-                                        {provider.rate}
-                                    </p>
+                                    
                                     <button  onClick={() => viewProvider(provider)} className="bg-blue-500 text-white text-sm font-medium px-4 py-1 rounded">
                                         Book
                                     </button>
