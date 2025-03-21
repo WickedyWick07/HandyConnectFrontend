@@ -126,11 +126,17 @@ const ViewAndBook = () => {
                             {/* Provider Details */}
                             <div className="bg-white p-4 m-4 rounded shadow-md">
                                 <div className="flex gap-4 items-center">
-                                    <img
-                                        src={provider.profilePicture}
-                                        alt={`${provider.companyName} profile`}
-                                        className="h-10 w-10 rounded-full object-cover"
-                                    />
+                                <img
+                                                                src={provider.profilePicture?.startsWith('http')
+                                                                    ? provider.profilePicture
+                                                                    : `${import.meta.env.VITE_IMAGES_API_URL}${provider.profilePicture}` || `https://localhost:5000${providers.profilePicture}`}
+                                                                alt={provider.companyName || 'Provider profile'}
+                                                                className="w-7 h-7 object-cover rounded-full"
+                                                                onError={(e) => {
+                                                                    e.target.onerror = null;
+                                                                    e.target.src = `https://localhost:5000${provider.profilePicture}`;
+                                                                }}
+                                                            />  
                                     <div>
                                         <h1 className="text-lg font-semibold">{provider.companyName}</h1>
                                         <p className="text-xs text-gray-600">{provider.description}</p>
@@ -227,7 +233,7 @@ const ViewAndBook = () => {
                                             value={service}  // Add this
                                             onChange={(e) => setService(e.target.value)}
                                         >
-                                            <option value="">Select a service</option>  // Add a default option
+                                            <option value="">Select a service</option>  
                                             {JSON.parse(provider.services[0] || '[]').map((service, i) => (
                                                 <option key={i} className="text-xs" value={service}>  
                                                     {service}

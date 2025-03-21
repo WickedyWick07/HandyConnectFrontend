@@ -82,7 +82,6 @@ const AllCustomerBookings = () => {
                                 <p className="text-sm text-gray-600">Time: <span className="font-semibold">{booking.time}</span></p>
                                 <p className="text-sm text-gray-600">Location: <span className="font-semibold">{booking.location}</span></p>
                                 <p className="text-sm text-gray-600">Problem: <span className="font-semibold">{booking.problem_description}</span></p>
-                                <p className="text-sm text-gray-600">Service Provider ID: <span className="font-semibold">{booking.service_provider}</span></p>
                             </div>
                             <div className="mt-4">
                                 <button 
