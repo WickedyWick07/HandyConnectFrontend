@@ -188,10 +188,10 @@ const Login = () => {
     };
 
     return (
-        <div className="min-h-screen flex">
+        <div className="min-h-screen flex flex-col md:flex-row">
             {/* Background image covering half of the page */}
             <div
-                className="w-1/2"
+                className="w-full md:w-1/2 h-64 md:h-auto"
                 style={{
                     backgroundImage: `url(${loginImg})`,
                     backgroundSize: 'cover',
@@ -201,8 +201,8 @@ const Login = () => {
 
             {/* Login form covering the other half */}
             {openLoginForm && (
-                <div className="w-1/2 flex items-center justify-center">
-                    <form className="bg-white p-8 rounded shadow-md w-3/4" onSubmit={handleLogin}>
+                <div className="w-full md:w-1/2 flex items-center justify-center p-4">
+                    <form className="bg-white p-8 rounded shadow-md w-full max-w-md" onSubmit={handleLogin}>
                         <h2 className="text-2xl font-bold mb-4 text-center">Login</h2>
                         <div className="mb-4">
                             <label htmlFor="email" className="block text-sm font-medium text-gray-700">
@@ -247,10 +247,10 @@ const Login = () => {
                 </div>
             )}
             {openRegisterForm && (
-                <div className="w-1/2 flex items-center justify-center">
-                    <form className="bg-white p-8 rounded shadow-md w-11/12" onSubmit={handleRegister}>
+                 <div className="w-full md:w-1/2 flex items-center justify-center p-4">
+                   <form className="bg-white p-6 md:p-8 rounded shadow-md w-full max-w-lg" onSubmit={handleRegister}>
                         <h2 className="text-2xl font-bold mb-4 text-center">Sign up</h2>
-                        <div className="flex justify-between">
+                       <div className="flex flex-col md:flex-row gap-4">
                             <div className="mb-4">
                                 <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">
                                     First Name
@@ -331,7 +331,7 @@ const Login = () => {
     <label htmlFor="location" className="block text-sm font-medium text-gray-700">
         Location
     </label>
-    <div className="flex">
+    <div className="flex flex-col sm:flex-row gap-2">
         <input
             onChange={(e) => {
                 setLocation(e.target.value);
@@ -349,7 +349,7 @@ const Login = () => {
             type="button"
             onClick={validateLocation}
             disabled={locationLoading || !location}
-            className="ml-2 px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
+           className="w-full sm:w-auto px-3 py-2 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
         >
             {locationLoading ? 'Verifying...' : 'Verify'}
         </button>

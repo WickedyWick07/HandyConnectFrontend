@@ -19,7 +19,7 @@ const HandymanListings = () => {
             <Header />
             <main className="m-4">
                 <h1 className="text-center text-xl underline mt-4">Available Handymen</h1>
-                <section className="grid grid-cols-2 m-4 mx-auto">
+                <section className="grid grid-cols-1 md:grid-cols-2 gap-6 m-4">
                     {[{
                         name: 'John Doe',
                         desc: 'Expert Plumber with 10 years experience',
@@ -41,7 +41,7 @@ const HandymanListings = () => {
                         img: merchant4,
                         stars: 5,
                     }].map((handyman, index) => (
-                        <div className="grid grid-cols-2 m-4 p-3" key={index}>
+                        <div className="flex flex-col md:flex-row items-center gap-4 p-4 border rounded" key={index}>
                             <div>
                                 <h1 className="font-semibold text-md">{handyman.name}</h1>
                                 <p className="text-gray-700 font-medium text-xs my-2">{handyman.desc}</p>
@@ -52,14 +52,14 @@ const HandymanListings = () => {
                                 </div>
                             </div>
                             <div>
-                                <img src={handyman.img} alt={`${handyman.name}`} className="h-24 w-36" />
+                                <img src={handyman.img} alt={`${handyman.name}`} className="w-full max-w-[180px] h-auto rounded" />
                             </div>
                         </div>
                     ))}
                 </section>
 
                 <h1 className="text-center text-xl underline mt-4">Ratings and Reviews</h1>
-                <section className="grid grid-cols-3">
+                <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {[{
                         name: 'Jane Doe',
                         img: testimonial1,
@@ -91,10 +91,10 @@ const HandymanListings = () => {
                         stars: 5,
                         review: 'Absolutely professional and detail-oriented!',
                     }].map((testimonial, index) => (
-                        <div className="m-4" key={index}>
+                        <div className="p-4 border rounded" key={index}>
                             <div className="flex items-center">
                                 <img src={testimonial.img} alt={testimonial.name} className="w-20 h-20 object-cover rounded-full" />
-                                <div className="flex-col ml-10">
+                                <div className="ml-4">
                                     <h1>{testimonial.name}</h1>
                                     <div className="flex">
                                         {[...Array(testimonial.stars)].map((_, i) => (

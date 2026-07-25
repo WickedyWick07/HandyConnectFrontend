@@ -82,9 +82,9 @@ const ProviderHistory = () => {
         <div className="min-h-screen bg-gray-50">
             <ProviderHeader />
             <div className="max-w-6xl mx-auto px-4 py-8">
-                <div className="flex justify-between items-center mb-8">
-                    <h2 className="text-3xl font-bold text-gray-900">Booking History</h2>
-                    <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-8 gap-4">
+                         <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Booking History</h2>
+                        <div className="flex flex-wrap gap-2">
                         <span className="inline-flex items-center px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 text-sm">
                             Pending
                         </span>
@@ -106,12 +106,12 @@ const ProviderHistory = () => {
                             <div className="p-6">
                                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                                     <div className="flex-1 space-y-4">
-                                        <div className="flex items-center gap-2">
-                                            <Calendar className="w-5 h-5 text-blue-500" />
-                                            <span className="text-gray-700">{formatDate(booking.date)}</span>
-                                            <Clock className="w-5 h-5 text-blue-500 ml-4" />
-                                            <span className="text-gray-700">{booking.time}</span>
-                                        </div>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                                      <Calendar className="w-5 h-5 text-blue-500" />
+                                                       <span className="text-gray-700">{formatDate(booking.date)}</span>
+                                                             <Clock className="w-5 h-5 text-blue-500 sm:ml-4" />
+                                                 <span className="text-gray-700">{booking.time}</span>
+                                               </div>
                                       
                                         <div className="flex items-start gap-2">
                                             <MapPin className="w-5 h-5 text-blue-500 mt-1" />
@@ -128,7 +128,7 @@ const ProviderHistory = () => {
                                         </div>
                                     </div>
 
-                                    <div className="flex flex-col items-end gap-4">
+                                    <div className="flex flex-col items-start md:items-end gap-4">
                                         <span className={`px-4 py-2 rounded-full text-sm font-medium ${getStatusColor(booking.status)}`}>
                                             {booking.status}
                                         </span>

@@ -102,7 +102,7 @@ const ViewBooking = () => {
       <ProviderHeader />
       </div>
       <main className="max-w-6xl mx-auto py-8 px-6 bg-white shadow-md rounded-lg space-y-7">
-        <h1 className="text-3xl text-center font-bold text-gray-800 mb-6">Booking Details</h1>
+        <h1 className="text-2xl sm:text-3xl text-center font-bold text-gray-800 mb-6">Booking Details</h1>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-gray-50 p-6 rounded-lg shadow-md">
   <div className="space-y-6">
