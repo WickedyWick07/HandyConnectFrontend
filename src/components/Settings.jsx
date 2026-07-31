@@ -208,7 +208,7 @@ const Settings = () => {
             {user && user.role === 'customer' ? <CustomerHeader /> : <ProviderHeader />}
             <main>
                 <div>
-                    <ul className='flex gap-4 p-4 justify-evenly'>
+                    <ul className='flex gap-2 sm:gap-4 p-4 justify-evenly flex-wrap'>
                         {sections.map(section => (
                             <li 
                                 key={section.id}
@@ -228,7 +228,7 @@ const Settings = () => {
                 
                 {/* Message display */}
                 {message.text && (
-                    <div className={`mx-20 my-2 p-2 rounded text-center ${
+                  <div className={`mx-4 sm:mx-8 lg:mx-20 my-2 p-2 rounded text-center ${
                         message.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                     }`}>
                         {message.text}
@@ -237,9 +237,9 @@ const Settings = () => {
                 
                 {/* General Section */}
                 {activeSection === 'general' && (
-                    <section className='bg-white p-4 mx-20 m-2 rounded-lg shadow-md'>
+                    <section className='bg-white p-4 mx-4 sm:mx-8 lg:mx-20 m-2 rounded-lg shadow-md'>
                         <h1 className='text-lg font-semibold text-center'>Language and Region</h1>
-                        <div className='mx-40 rounded'>
+                        <div className='mx-0 sm:mx-10 lg:mx-40 rounded'>
                             <div className='flex justify-between items-center gap-2'>
                                 <h1 className='text-md font-medium'>Language</h1>
                                 <select 
@@ -298,7 +298,7 @@ const Settings = () => {
                 
                 {/* Profile Section - Delete Account */}
                 {activeSection === 'profile' && (
-                    <section className='bg-white p-4 mx-20 m-2 rounded-lg shadow-md'>
+                    <section className='bg-white p-4 mx-4 sm:mx-8 lg:mx-20 m-2 rounded-lg shadow-md'>
                         <h1 className='text-lg font-semibold text-center'>Profile Settings</h1>
                         <div className='mx-auto max-w-md mt-6 p-4 border border-red-200 rounded-md'>
                             <h2 className='text-red-600 font-semibold'>Delete Account</h2>
@@ -355,9 +355,9 @@ const Settings = () => {
                 
                 {/* Notifications Section */}
                 {activeSection === 'notifications' && (
-                    <section className='bg-white p-4 mx-20 m-2 rounded-lg shadow-md'>
+                    <section className='bg-white p-4 mx-4 sm:mx-8 lg:mx-20 m-2 rounded-lg shadow-md'>
                         <h1 className='text-lg font-semibold text-center'>Notifications</h1>
-                        <div className='mx-40 rounded'>
+                        <div className='mx-0 sm:mx-10 lg:mx-40 rounded'>
                             <div className='flex flex-col gap-2'>
                                 <div className='flex justify-between items-center p-2 mt-4 gap-2'>
                                     <p className='text-md font-medium'>Email Notifications</p>
@@ -384,7 +384,7 @@ const Settings = () => {
                 
                 {/* Security Section - Change Password */}
                 {activeSection === 'security' && (
-                    <section className='bg-white p-4 mx-20 m-2 rounded-lg shadow-md'>
+                    <section className='bg-white p-4 mx-4 sm:mx-8 lg:mx-20 m-2 rounded-lg shadow-md'>
                         <h1 className='text-lg font-semibold text-center'>Security Settings</h1>
                         <div className='mx-auto max-w-md mt-6'>
                             <h2 className='text-md font-semibold'>Change Password</h2>
@@ -447,7 +447,7 @@ const Settings = () => {
                 
                 {/* Action buttons - Only show for General and Notifications sections */}
                 {(activeSection === 'general' || activeSection === 'notifications') && (
-                    <div className='flex gap-2 p-4 mx-20 justify-end'>
+                    <div className='flex gap-2 p-4 mx-4 sm:mx-8 lg:mx-20 justify-end'>
                         <button 
                             onClick={handleCancel}
                             disabled={!hasChanges || isSaving}

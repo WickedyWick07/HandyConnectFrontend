@@ -24,8 +24,8 @@ const LandingPage = () => {
           }}
         ></div>
         <div className="relative z-10 text-center text-white">
-          <h1 className="text-4xl font-semibold">Expert Handyman Solutions</h1>
-          <p className="text-xl mt-5">Reliable and affordable handyman services at your doorstep</p>
+          <h1 className="text-3xl md:text-4xl font-semibold px-4">Expert Handyman Solutions</h1>
+      <p className="text-lg md:text-xl mt-5 px-4">Reliable and affordable handyman services at your doorstep</p>
           <button className="px-4 py-2 text-xl bg-purple-500 rounded mt-5">Get Started</button>
         </div>
       </section>
@@ -41,14 +41,14 @@ const LandingPage = () => {
             <p className="text-gray-700 mt-3">
               Easily book appointments with skilled handymen at your convenience through our intuitive app interface.
             </p>
-            <div className="mt-4 flex gap-4">
+            <div className="mt-4 flex flex-col sm:flex-row gap-4">
               <button className="px-4 py-2 bg-purple-700 text-white rounded">Try Now</button>
               <button className="px-4 py-2 border border-purple-700 text-purple-700 rounded">Learn More</button>
             </div>
           </div>
-          <img src={manWorkingImg} alt="Handyman working" className="object-cover rounded" />
+          <img src={manWorkingImg} alt="Handyman working" className="w-full h-auto object-cover rounded" />
 
-          <img src={phoneVerification} alt="Phone verification" className="object-cover rounded" />
+          <img src={phoneVerification} alt="Phone verification" className="w-full h-auto object-cover rounded" />
           <div>
             <h2 className="text-xl font-bold">Verified Professionals</h2>
             <p className="text-gray-700 mt-3">

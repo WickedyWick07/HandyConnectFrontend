@@ -126,7 +126,7 @@ const ProviderSignup = () => {
             </div>
             <main>
                 <section>
-                    <form onSubmit={handleSubmit} className='bg-white p-8 mx-20 my-4 rounded-lg shadow-md'>
+                    <form onSubmit={handleSubmit} className='bg-white p-6 md:p-8 mx-4 md:mx-20 my-4 rounded-lg shadow-md'>
                         <h1 className='text-xl font-medium mb-4'>Personal Information</h1>
                         <div>
                             {user &&  (
@@ -160,18 +160,18 @@ const ProviderSignup = () => {
                             </h1>
                         <div className='m-4 mx-auto p-2'>
                             <div className='flex flex-col'>
-                                <div className='flex justify-between'>
+                                <div className='flex flex-col md:flex-row gap-4'>
 
-                                    <div className='mb-2'>
-                                        <p className='block text-sm font-medium text-gray-700'>Company Name</p>
-                                        <input  className='mt-1 p-2 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm' value={companyName} onChange={(e)=> setCompanyName(e.target.value)} type="text" />
-                                    </div>
-                                    <div>
-                                        <p className='block text-sm font-medium text-gray-700'>Years in service</p>
-                                        <input onChange={(e) => setYearsInService(e.target.value)} value={yearsInService} type="number"  className='mt-1 p-2 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm' />
-                                    </div>
+                            <div className='flex-1 mb-2'>
+                                    <p className='block text-sm font-medium text-gray-700'>Company Name</p>
+                                    <input  className='mt-1 p-2 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm' value={companyName} onChange={(e)=> setCompanyName(e.target.value)} type="text" />
+                             </div>
+                              <div className='flex-1'>
+                                    <p className='block text-sm font-medium text-gray-700'>Years in service</p>
+                                    <input onChange={(e) => setYearsInService(e.target.value)} value={yearsInService} type="number"  className='mt-1 p-2 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm' />
+                              </div>
 
-                                </div>
+                                 </div>
                                 <div className=''>
                                     <p className='block text-sm font-medium text-gray-700'>Description</p>
                                     <textarea onChange={(e) => setDescription(e.target.value)} value={description} type="text" name='description'  className='mt-1 p-2 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm' />
@@ -218,10 +218,10 @@ const ProviderSignup = () => {
                    
                 </div>
 
-                <div className="flex justify-end gap-4">
+               <div className="flex flex-col sm:flex-row justify-end gap-4 mt-6">
                             <button
                                 type="button"
-                                className="bg-gray-200 border text-sm border-gray-700 text-black p-2 rounded"
+                                className="w-full sm:w-auto bg-gray-200 border text-sm border-gray-700 text-black p-2 rounded"
                                 onClick={() => navigate(-1)}
                                 disabled={loading} // Disable cancel button during loading
                             >
@@ -230,7 +230,7 @@ const ProviderSignup = () => {
                             <button
                                 disabled={loading}
                                 type="submit"
-                                className={`p-2 rounded text-sm ${loading ? 'bg-gray-400' : 'bg-black text-white'}`}
+                               className={`w-full sm:w-auto p-2 rounded text-sm ${loading ? 'bg-gray-400' : 'bg-black text-white'}`}
                             >
                                 {loading ? 'Submitting...' : 'Submit Application'}
                             </button>
