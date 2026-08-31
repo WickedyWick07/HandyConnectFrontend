@@ -173,7 +173,7 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
     };
 
     return (
-        <div className="flex flex-col h-screen bg-gray-50">
+        <div className="flex flex-col h-full bg-gray-50">
             {/* Header */}
             <div className="bg-blue-600 text-white py-4 px-6 flex items-center justify-between">
                 <div className="flex items-center">

@@ -121,7 +121,7 @@ const ViewAndBook = () => {
             <main>
                 <div>
                    
-                        <div className="flex" key={provider._id}>
+                        <div className="flex flex-col lg:flex-row" key={provider._id}>
                             {/* Provider Details */}
                             <div className="bg-white p-4 m-4 rounded shadow-md">
                                 <div className="flex gap-4 items-center">
@@ -214,7 +214,7 @@ const ViewAndBook = () => {
                             </div>
                             {/* Booking Form */}
                             <div>
-                                <form className="bg-white p-4 m-4 rounded shadow-md w-80" onSubmit={handleSubmit}>
+                                <form className="bg-white p-4 m-4 rounded shadow-md w-full lg:w-80" onSubmit={handleSubmit}>
                                     <h1 className="font-bold text-lg mb-4">Book a service</h1>
                                     <div className="mb-4">
                                         <label
@@ -302,7 +302,7 @@ const ViewAndBook = () => {
 
                 {isModalOpen && (
                         <div className="fixed inset-0 bg-gray-800 bg-opacity-50 flex justify-center items-center z-50">
-                            <div className="bg-white p-6 rounded shadow-md w-1/3">
+                           <div className="bg-white p-6 rounded shadow-md w-11/12 sm:w-2/3 lg:w-1/3 mx-4">
                                 <h1 className="text-lg font-bold mb-4">Confirm Booking</h1>
                                 <p className="text-sm mb-6">
                                     Are you sure you want to book <b>{provider.companyName}</b> for {date} at {time}?
@@ -335,13 +335,13 @@ const ViewAndBook = () => {
                         Certifications
                     </h1>
                     <p className='text-sm text-gray-600 text-center font-medium mb-4'>{provider.companyName} has the following certifications: </p>
-                    <div className="grid grid-cols-3 gap-4">
+                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                         {provider.certifications?.map((cert, index) => (
                             <img
                                 key={index}
                                 src={`${import.meta.env.VITE_IMAGES_API_URL}${cert}`}
                                 alt={`Certification ${index + 1}`}
-                                className="object-cover w-60 h-60 border rounded"
+                                className="object-cover w-full h-60 border rounded"
                                 onError={(e) => {
                                     e.target.onerror = null;
                                     e.target.src = "/default-placeholder.png"; // Fallback image

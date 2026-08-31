@@ -58,78 +58,82 @@ const ProviderRequest = () => {
 
       {/* If no bookings exist, show 'No New Requests' */}
       {bookings.length === 0 ? (
-        <p className="font-bold text-5xl text-gray-200 text-center py-10">
+        <p className="font-bold text-2xl sm:text-3xl lg:text-5xl text-gray-200 text-center py-10 px-4">
           No New Requests
         </p>
       ) : (
-        <table className="w-full rounded">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="p-2 border-r text-xs text-left text-gray-500">
-                Client
-              </th>
-              <th className="p-2 border-r text-xs text-left text-gray-500">
-                Service
-              </th>
-              <th className="p-2 border-r text-xs text-left text-gray-500">
-                Location
-              </th>
-              <th className="p-2 border-r text-xs text-left text-gray-500">
-                Date
-              </th>
-              <th className="p-2 border-r text-xs text-left text-gray-500">
-                Status
-              </th>
-              <th className="p-2 text-xs text-left text-gray-500">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {bookings.map((booking, index) => {
-              const customerData =
-                customer?.find((cust) => cust._id === booking.user) || {};
-
-              return (
-                <tr key={index}>
-                  <td className="p-2 text-xs font-semibold text-center py-5 px-4">
-                    {customerData.firstName} {customerData.lastName}
-                  </td>
-                  <td className="p-2 font-semibold text-xs">
-                    {booking.service}
-                  </td>
-                  <td className="p-2 font-semibold text-xs">
-                    {booking.location}
-                  </td>
-                  <td className="p-2 font-semibold text-xs">{booking.date}</td>
-                  <td className="p-2 text-xs font-medium">
-                    {booking.status === "accepted" ? (
-                      <div className="text-xs text-center rounded-full bg-green-200 text-green-700 inline-block px-4 py-1">
-                        {booking.status}
-                      </div>
-                    ) : booking.status === "declined" ? (
-                      <div className="text-xs text-center rounded-full bg-red-200 text-red-700 inline-block px-4 py-1">
-                        {booking.status}
-                      </div>
-                    ) : (
-                      <div className="text-xs text-center rounded-full bg-yellow-200 text-yellow-700 inline-block px-4 py-1">
-                        {booking.status}
-                      </div>
-                    )}
-                  </td>
-                  <td className="p-2 text-xs">
-                    <button
-                      onClick={() => viewBooking(booking)}
-                      className="mx-auto text-center flex justify-center px-2"
-                    >
-                      <p className="text-xs p-2 m-2 font-medium text-center px-1 py-1 bg-purple-800 rounded text-white">
-                        View Booking
-                      </p>
-                    </button>
-                  </td>
+        <div className="p-4">
+          <div className="bg-white rounded shadow overflow-x-auto">
+            <table className="w-full rounded min-w-[640px]">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="p-2 border-r text-xs text-left text-gray-500">
+                    Client
+                  </th>
+                  <th className="p-2 border-r text-xs text-left text-gray-500">
+                    Service
+                  </th>
+                  <th className="p-2 border-r text-xs text-left text-gray-500">
+                    Location
+                  </th>
+                  <th className="p-2 border-r text-xs text-left text-gray-500">
+                    Date
+                  </th>
+                  <th className="p-2 border-r text-xs text-left text-gray-500">
+                    Status
+                  </th>
+                  <th className="p-2 text-xs text-left text-gray-500">Action</th>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              </thead>
+              <tbody>
+                {bookings.map((booking, index) => {
+                  const customerData =
+                    customer?.find((cust) => cust._id === booking.user) || {};
+
+                  return (
+                    <tr key={index}>
+                      <td className="p-2 text-xs font-semibold text-center py-5 px-4">
+                        {customerData.firstName} {customerData.lastName}
+                      </td>
+                      <td className="p-2 font-semibold text-xs">
+                        {booking.service}
+                      </td>
+                      <td className="p-2 font-semibold text-xs">
+                        {booking.location}
+                      </td>
+                      <td className="p-2 font-semibold text-xs">{booking.date}</td>
+                      <td className="p-2 text-xs font-medium">
+                        {booking.status === "accepted" ? (
+                          <div className="text-xs text-center rounded-full bg-green-200 text-green-700 inline-block px-4 py-1">
+                            {booking.status}
+                          </div>
+                        ) : booking.status === "declined" ? (
+                          <div className="text-xs text-center rounded-full bg-red-200 text-red-700 inline-block px-4 py-1">
+                            {booking.status}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-center rounded-full bg-yellow-200 text-yellow-700 inline-block px-4 py-1">
+                            {booking.status}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-2 text-xs">
+                        <button
+                          onClick={() => viewBooking(booking)}
+                          className="mx-auto text-center flex justify-center px-2"
+                        >
+                          <p className="text-xs p-2 m-2 font-medium text-center px-1 py-1 bg-purple-800 rounded text-white">
+                            View Booking
+                          </p>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
     </div>
   );

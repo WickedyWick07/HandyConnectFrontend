@@ -1,17 +1,33 @@
-import { useContext, useState, useEffect } from 'react';
+import './Schedule.css';
+import { useContext, useState, useEffect, useRef } from 'react';
 import AuthContext from '../context/AuthContext';
 import api from '../utils/api';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
+import listPlugin from '@fullcalendar/list';
 import interactionPlugin from '@fullcalendar/interaction';
 
 const Schedule = () => {
     const [events, setEvents] = useState([]);
     const [user, setUser] = useState(null);
     const { fetchCurrentUser } = useContext(AuthContext);
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+    const calendarRef = useRef(null);
 
-    
+    useEffect(() => {
+        const handleResize = () => {
+            const mobile = window.innerWidth < 768;
+            setIsMobile(mobile);
+            const api = calendarRef.current?.getApi();
+            if (api) {
+                api.changeView(mobile ? 'listWeek' : 'dayGridMonth');
+            }
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
     useEffect(() => {
         const fetchUser = async () => {
             try {
@@ -50,22 +66,21 @@ const Schedule = () => {
     
         getBookings();
     }, [user]); // Runs when `user` changes
-     // Runs when `user` changes
 
     return (
         <div>
            <FullCalendar
-    plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-    initialView="dayGridMonth"
-    headerToolbar={{
-        left: 'prev,next today',
-        center: 'title',
-        right: 'dayGridMonth,timeGridWeek,timeGridDay'
-    }}
+    ref={calendarRef}
+    plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
+    initialView={isMobile ? 'listWeek' : 'dayGridMonth'}
+    headerToolbar={
+        isMobile
+            ? { left: 'prev,next today', center: 'title', right: '' }
+            : { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' }
+    }
+    titleFormat={isMobile ? { month: 'short', day: 'numeric' } : { month: 'long', year: 'numeric' }}
     events={events}
-    aspectRatio={1.5}
     contentHeight="auto"
-    height="800px"
     editable={true}
     selectable={true}
     selectMirror={true}
