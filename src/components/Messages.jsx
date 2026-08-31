@@ -1,7 +1,8 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useRef } from 'react';
+import { io } from 'socket.io-client';
 import AuthContext from '../context/AuthContext';
 import CustomerHeader from './CustomerHeader';
-import ProviderHeader from './ProviderHeader'; 
+import ProviderHeader from './ProviderHeader';
 import api from '../utils/api';
 import { useNavigate } from 'react-router-dom';
 import LoadingPage from './LoadingPage';
@@ -12,8 +13,9 @@ const Messages = () => {
     const [conversations, setConversations] = useState({ conversations: [] });
     const [userId, setUserId] = useState(null);
     const navigate = useNavigate();
-    const [participantDetails, setParticipantDetails ] = useState([]);
+    const [participantDetails, setParticipantDetails] = useState([]);
     const [loading, setLoading] = useState(true);  // Added loading state
+    const socketRef = useRef(null);
 
     useEffect(() => {
         const fetchUser = async () => {
@@ -23,7 +25,7 @@ const Messages = () => {
         };
         fetchUser();
     }, [fetchCurrentUser]);
-    
+
     const fetchConversations = async () => {
         try {
             setLoading(true);  // Start loading
@@ -40,7 +42,7 @@ const Messages = () => {
         const fetchParticipantDetails = async () => {
             try {
                 if (!conversations?.conversations?.length || !user?._id) return;
-                
+
                 const recipientIds = conversations.conversations.reduce((ids, conversation) => {
                     const recipient = conversation.participants.find(p => p._id !== user._id);
                     if (recipient) ids.push(recipient._id);
@@ -63,7 +65,7 @@ const Messages = () => {
 
     const getRecipientDetails = (conversation) => {
         if (!conversation?.participants || !user?._id) return null;
-        
+
         const recipientId = conversation.participants.find(p => p._id !== user._id)?._id;
         return participantDetails.find(p => p._id === recipientId);
     };
@@ -73,6 +75,57 @@ const Messages = () => {
             fetchConversations();
         }
     }, [userId]);
+
+    // Connect to the socket and listen for live updates so this list doesn't
+    // require a page refresh to show new chats or new messages.
+    useEffect(() => {
+        if (!userId) return;
+
+        const socketUrl = import.meta.env.VITE_SOCKET_API_URL || 'http://localhost:5000';
+        const socket = io(socketUrl);
+        socketRef.current = socket;
+
+        // Join our personal room so the server's io.to(userId).emit(...) reaches us
+        socket.emit('register', { userId, userType: user?.role });
+
+        // A brand-new conversation was created (e.g. someone messaged us for
+        // the first time) — add it to the top of the list if it's not already there.
+        socket.on('new_conversation', (conversation) => {
+            setConversations(prev => {
+                const exists = prev.conversations.some(c => c._id === conversation._id);
+                if (exists) return prev;
+                return {
+                    ...prev,
+                    conversations: [conversation, ...prev.conversations]
+                };
+            });
+        });
+
+        // A message arrived in one of our conversations — update that
+        // conversation's preview text/time and bump it to the top.
+        socket.on('receive_message', (msg) => {
+            setConversations(prev => {
+                const idx = prev.conversations.findIndex(c => c._id === msg.conversationId);
+                if (idx === -1) return prev; // conversation not loaded yet, ignore
+
+                const updated = {
+                    ...prev.conversations[idx],
+                    lastMessage: msg.message,
+                    lastMessageAt: msg.createdAt || new Date().toISOString()
+                };
+
+                const rest = prev.conversations.filter((_, i) => i !== idx);
+                return {
+                    ...prev,
+                    conversations: [updated, ...rest]
+                };
+            });
+        });
+
+        return () => {
+            socket.disconnect();
+        };
+    }, [userId, user]);
 
     const goToChat = (conversation) => {
         if (conversation && user.role === 'customer') {
@@ -106,7 +159,7 @@ const Messages = () => {
                         <div className="space-y-4">
                             {userConvos.map((conversation) => {
                                 const recipient = getRecipientDetails(conversation);
-                                
+
                                 return (
                                     <div
                                         onClick={() => goToChat(conversation)}
@@ -119,7 +172,7 @@ const Messages = () => {
                                                     {recipient.email}
                                                 </p>
                                                 {recipient.profilePicture && (
-                                                    <img 
+                                                    <img
                                                         src={recipient.profilePicture}
                                                         alt="Profile"
                                                         className="w-10 h-10 rounded-full"
@@ -134,7 +187,7 @@ const Messages = () => {
                                             Last updated: {new Date(conversation.lastMessageAt).toLocaleString()}
                                         </p>
                                         <div>
-                                            <button     
+                                            <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     deleteConversation(conversation);

@@ -15,56 +15,48 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
     useEffect(() => {
         // Initialize audio object when component mounts
         messageSoundRef.current = new Audio(notificationSound);
-        
+
         // Connect to socket server
         const socketUrl = import.meta.env.VITE_SOCKET_API_URL || 'http://localhost:5000';
         const newSocket = io(socketUrl);
         setSocket(newSocket);
 
-        // Register user
+        // Register user so the server can join this socket to a room keyed by
+        // userId — this is what makes io.to(userId).emit(...) reach us.
         newSocket.emit('register', {
             userId: currentUserId,
             userType: currentUserType, // 'customer' or 'provider'
         });
-        
+
         // Request notification permission immediately
         if ("Notification" in window) {
             if (Notification.permission === 'default') {
                 Notification.requestPermission();
             }
         }
-        
+
         // Listen for incoming messages
         newSocket.on('receive_message', (data) => {
-            console.log('Received message:', data);
-            
+            // Ignore messages for a different conversation than the one open
+            if (chatId && data.conversationId && data.conversationId !== chatId) {
+                return;
+            }
+
             // Only play sound and increment unread if message is from other user
             if (data.senderId !== currentUserId) {
-                // Try to play sound
                 if (messageSoundRef.current) {
                     messageSoundRef.current.play().catch(err => console.log('Audio play error:', err));
                 }
-                
-                // Increment unread messages counter
                 setUnreadMessages(prev => prev + 1);
-                
-                // Show notification
                 showNotification(data.message);
             }
-            
+
             // Add message to state immediately
             setMessages(prev => [...prev, {
                 ...data,
-                // Ensure there's a timestamp if not provided
                 timestamp: data.timestamp || new Date().toISOString(),
-                // Use temporary ID for new messages if needed
                 id: data.id || `temp-${Date.now()}`
             }]);
-        });
-
-        // Listen for sent message confirmations
-        newSocket.on('message_sent', (data) => {
-            console.log('Message sent successfully:', data);
         });
 
         // Cleanup on unmount
@@ -75,12 +67,10 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
                 messageSoundRef.current = null;
             }
         };
-    }, [currentUserId, currentUserType]);
+    }, [currentUserId, currentUserType, chatId]);
 
     // Show browser notification
     const showNotification = (messageText) => {
-        console.log('Attempting to show notification, permission:', Notification.permission);
-        
         if ("Notification" in window && Notification.permission === 'granted') {
             try {
                 const notification = new Notification('New Message', {
@@ -88,13 +78,11 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
                     icon: notificationIcon,
                     tag: 'chat-message', // Prevents multiple notifications from stacking
                 });
-                
+
                 notification.onclick = () => {
                     window.focus();
                     notification.close();
                 };
-                
-                console.log('Notification created:', notification);
             } catch (error) {
                 console.error('Error creating notification:', error);
             }
@@ -106,7 +94,6 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
         const fetchMessages = async () => {
             try {
                 const res = await api.post("/messages", { chatId });
-                console.log('Fetched messages:', res);
                 if (res.data && res.data.data) {
                     setMessages(res.data.data);
                 }
@@ -114,7 +101,7 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
                 console.log('Error fetching messages', error);
             }
         };
-        
+
         if (chatId) {
             fetchMessages();
         }
@@ -133,7 +120,7 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
     };
 
     const sendMessage = async () => {
-        if (message.trim() && socket) {
+        if (message.trim()) {
             const currentTime = new Date();
             const messageData = {
                 context: bookingId,
@@ -151,44 +138,34 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
                 senderType: currentUserType,
                 pending: true // Mark as pending until confirmed
             };
-            
+
             setMessages(prev => [...prev, optimisticMessage]);
             setMessage(''); // Clear input field immediately
 
-            // Emit private message to the receiver
-            socket.emit('private_message', messageData, (acknowledgement) => {
-                console.log('Message delivered acknowledgement:', acknowledgement);
-                
-                // Update the message status if we got acknowledgement
-                if (acknowledgement && acknowledgement.success) {
-                    setMessages(prev => prev.map(msg => 
-                        msg.tempId === messageData.tempId 
-                            ? {...msg, pending: false, id: acknowledgement.messageId} 
-                            : msg
-                    ));
-                }
-            });
-
+            // NOTE: sending now goes through the REST call only. The previous
+            // socket.emit('private_message', ...) call was removed — there was
+            // no matching backend handler for it, so it never did anything.
+            // The server emits 'receive_message' back over the socket once the
+            // REST call below persists the chat, which is what actually
+            // delivers the message to the other participant in real time.
             try {
-                // Send message to backend
                 const response = await api.post('/send-message', messageData);
-                console.log('Message saved to database:', response);
-                
-                // Update message in state with DB info if needed
-                if (response.data && response.data.id) {
-                    setMessages(prev => prev.map(msg => 
-                        msg.tempId === messageData.tempId 
-                            ? {...msg, pending: false, id: response.data.id} 
+
+                if (response.data?.data?.chat) {
+                    const savedChat = response.data.data.chat;
+                    setMessages(prev => prev.map(msg =>
+                        msg.tempId === messageData.tempId
+                            ? { ...msg, pending: false, id: savedChat._id }
                             : msg
                     ));
                 }
             } catch (error) {
                 console.error('Error sending message:', error);
-                
+
                 // Mark message as failed
-                setMessages(prev => prev.map(msg => 
-                    msg.tempId === messageData.tempId 
-                        ? {...msg, error: true} 
+                setMessages(prev => prev.map(msg =>
+                    msg.tempId === messageData.tempId
+                        ? { ...msg, error: true }
                         : msg
                 ));
             }
@@ -211,13 +188,13 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
             </div>
 
             {/* Messages Container */}
-            <div 
+            <div
                 ref={messagesContainerRef}
                 className="flex-1 overflow-y-auto p-4 space-y-4"
                 onClick={handleMessagesView}
                 onScroll={handleMessagesView}
             >
-                {messages
+                {[...messages]
                     .sort((a, b) => new Date(a.createdAt || a.timestamp) - new Date(b.createdAt || b.timestamp))
                     .map((msg, index) => (
                         <div
@@ -226,8 +203,8 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
                         >
                             <div
                                 className={`max-w-xs px-4 py-2 rounded-lg shadow ${
-                                    msg.senderId === currentUserId 
-                                        ? `bg-blue-500 text-white rounded-br-none ${msg.pending ? 'opacity-70' : ''}` 
+                                    msg.senderId === currentUserId
+                                        ? `bg-blue-500 text-white rounded-br-none ${msg.pending ? 'opacity-70' : ''}`
                                         : 'bg-gray-300 text-gray-900 rounded-bl-none'
                                 }`}
                             >
@@ -240,11 +217,11 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
                                         <span className="text-red-300">Failed to send</span>
                                     )}
                                     <span className="ml-auto">
-                                        {(msg.createdAt || msg.timestamp) 
-                                            ? new Date(msg.createdAt || msg.timestamp).toLocaleTimeString([], { 
-                                                hour: '2-digit', 
-                                                minute: '2-digit' 
-                                            }) 
+                                        {(msg.createdAt || msg.timestamp)
+                                            ? new Date(msg.createdAt || msg.timestamp).toLocaleTimeString([], {
+                                                hour: '2-digit',
+                                                minute: '2-digit'
+                                            })
                                             : "Now"
                                         }
                                     </span>
