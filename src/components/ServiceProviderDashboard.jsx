@@ -8,7 +8,6 @@ import { useNavigate } from 'react-router-dom';
 import AuthContext from '../context/AuthContext';
 import api from '../utils/api';
 import Schedule from './Schedule';
-import NotificationBell from './NotificationBell';
 
 const ServiceProviderDashboard = () => {
     const { fetchCurrentUser } = useContext(AuthContext)
