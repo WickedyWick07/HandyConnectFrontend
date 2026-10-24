@@ -1,12 +1,10 @@
-import ProviderSidemenu from './ProviderSidemenu'
+
+import ProviderSidemenu from './ProviderSidemenu';
 import NotificationBell from './NotificationBell';
 import { Bars3Icon } from '@heroicons/react/24/outline';
 import profilePicture from '../assets/Merchants/Merchant-1.jpg';
-import { useContext, useState, useEffect, useMemo } from 'react';
-import {useNavigate} from 'react-router-dom'
-import { Bars3Icon } from '@heroicons/react/24/outline';
-import { useContext, useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom'
+import { useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AuthContext from '../context/AuthContext';
 import api from '../utils/api';
 import Schedule from './Schedule';
