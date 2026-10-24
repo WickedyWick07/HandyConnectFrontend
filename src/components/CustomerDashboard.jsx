@@ -11,13 +11,12 @@ import {
     HomeAutomation,
     ExteriorMaintenance,
 } from '../constants/Services';
-import {useContext, useEffect, useMemo, useState} from 'react'
-import { useContext, useEffect, useState, useCallback } from 'react'
+import { useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import AuthContext from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import SideMenu from './SideMenu';
 import api from '../utils/api';
-import NotificationBell from './NotificationBell';
+
 
 const imgUrl = (p) =>
     !p ? '/default-placeholder.png'
