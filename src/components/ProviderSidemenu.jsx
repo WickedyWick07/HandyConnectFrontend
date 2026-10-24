@@ -6,7 +6,7 @@ import house from '../assets/Icons/house-door-fill.svg';
 import { useContext } from 'react';
 import { Link } from 'react-router-dom';
 import AuthContext from '../context/AuthContext';
-import { XMarkIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
 
 const ProviderSidemenu = ({ isOpen = false, onClose = () => {} }) => {
     const { logout } = useContext(AuthContext);
@@ -40,6 +40,10 @@ const ProviderSidemenu = ({ isOpen = false, onClose = () => {} }) => {
             <li><a href="/settings" className="py-2 px-4 rounded hover:bg-purple-500 hover:text-white flex items-center text-sm">
                 <img src={settings} className='w-4 h-4 mr-2' />
                 Settings
+            </a></li>
+            <li><a href="/help" className="py-2 px-4 rounded hover:bg-purple-500 hover:text-white flex items-center text-sm">
+                <QuestionMarkCircleIcon className='w-4 h-4 mr-2' />
+                Help
             </a></li>
             <li><button onClick={() => logout()} className="py-2 px-4 rounded hover:bg-red-500 hover:text-white flex items-center text-sm">
                 <img src={settings} className='w-4 h-4 mr-2' />

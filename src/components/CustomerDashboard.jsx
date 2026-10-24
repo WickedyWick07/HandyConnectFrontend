@@ -1,4 +1,5 @@
-import { BellAlertIcon } from '@heroicons/react/24/solid';
+import NotificationBell from './NotificationBell';
+import RatingReview from './RatingReview';
 import { Bars3Icon } from '@heroicons/react/24/outline';
 import {
     Carpentry,
@@ -10,7 +11,7 @@ import {
     HomeAutomation,
     ExteriorMaintenance,
 } from '../constants/Services';
-import {useContext, useEffect, useState} from 'react'
+import {useContext, useEffect, useMemo, useState} from 'react'
 import AuthContext from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -31,6 +32,7 @@ const CustomerDashboard = () => {
 
     const [serviceProviders, setServiceProviders] = useState([])
     const [isMenuOpen, setIsMenuOpen] = useState(false)
+    const [selectedBooking, setSelectedBooking] = useState(null);
 
     
     useEffect(() => {
@@ -74,6 +76,36 @@ const CustomerDashboard = () => {
     
         getBookings();
     }, [user]); // Runs when `user` changes
+
+    // Notifications for the bell: built from the bookings already loaded above
+    const notifications = useMemo(() => {
+        const updates = {
+            accepted: {
+                type: 'success',
+                text: (service) => `Your ${service} booking was accepted.`,
+            },
+            declined: {
+                type: 'error',
+                text: (service) => `Your ${service} booking was declined.`,
+            },
+            completed: {
+                type: 'success',
+                text: (service) => `Your ${service} booking is complete. You can now rate and review it.`,
+            },
+        };
+
+        return bookings
+            .filter((booking) => updates[booking.status])
+            .map((booking) => ({
+                id: `${booking._id}-${booking.status}`,
+                type: updates[booking.status].type,
+                message: updates[booking.status].text(booking.service),
+                time: booking.updatedAt || booking.createdAt,
+                booking,
+            }))
+            .sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0))
+            .slice(0, 10);
+    }, [bookings]);
 
     const viewBooking = (booking) => {
         navigate('/view-customer-booking', {state:{booking}})
@@ -124,7 +156,10 @@ return (
                         </div>
                     </div>
                     <div className='flex justify-end gap-4'>
-                        <BellAlertIcon className='size-8' />
+                        <NotificationBell
+                            notifications={notifications}
+                            onNotificationClick={(notification) => viewBooking(notification.booking)}
+                        />
                        
                     </div>
                 </section>
@@ -137,7 +172,7 @@ return (
             <div
                 key={i}
                 onClick={() => goToService(service)}
-                className="min-w-[260px] sm:min-w-[280px] bg-white rounded-lg shadow p-5 cursor-pointer hover:shadow-lg transition snap-start flex-shrink-0"
+                className="flex-none snap-start w-full sm:w-[calc((100%-1rem)/2)] lg:w-[calc((100%-2rem)/3)] xl:w-[calc((100%-3rem)/4)] bg-white rounded-lg shadow p-5 cursor-pointer hover:shadow-lg transition"
             >
                 <div className="flex justify-center">
                     <img
@@ -147,11 +182,11 @@ return (
                     />
                 </div>
 
-                <h2 className="text-center font-semibold mt-3">
+                <h2 className="text-center font-semibold mt-3 break-words">
                     {service.Title}
                 </h2>
 
-                <p className="text-sm text-gray-600 text-center mt-2">
+                <p className="text-sm text-gray-600 text-center mt-2 break-words">
                     {service.Description}
                 </p>
             </div>
@@ -222,6 +257,78 @@ return (
                         )): <p className="text-xl sm:text-3xl lg:text-5xl text-gray-200 text-center py-10 font-bold"> No Bookings Made </p> }
                     </div>
                 </section>
+                
+<section className="bg-white rounded-lg shadow mt-6">
+  <h1 className="text-black font-bold text-md px-4 py-2">
+    Completed Bookings
+  </h1>
+
+  <div className="p-4">
+    {bookings.filter((booking) => booking.status === 'completed').length > 0 ? (
+      bookings
+        .filter((booking) => booking.status === 'completed')
+        .map((booking) => (
+          <div
+            key={booking._id}
+            className="border border-gray-100 my-2 rounded p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+          >
+            <div>
+              <h2 className="font-medium text-sm">{booking.service}</h2>
+              <p className="text-xs text-gray-500">
+                Booked for: {booking.date} at {booking.time}
+              </p>
+              <p className="text-sm text-green-700 font-semibold mt-1">
+                Completed
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSelectedBooking(booking)}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded"
+            >
+              Rate &amp; Review
+            </button>
+          </div>
+        ))
+    ) : (
+      <p className="text-sm text-gray-500 py-4">
+        You don't have any completed bookings yet.
+      </p>
+    )}
+  </div>
+</section>
+
+{selectedBooking && (
+  <section className="bg-white rounded-lg shadow mt-6 p-4">
+    <div className="flex justify-between items-center mb-4">
+      <h2 className="font-bold text-lg">Write Your Review</h2>
+      <button
+        type="button"
+        onClick={() => setSelectedBooking(null)}
+        className="text-gray-600 hover:text-gray-900"
+      >
+        Close
+      </button>
+    </div>
+
+    <p className="text-sm text-gray-600 mb-4">
+      Service: {selectedBooking.service}
+    </p>
+
+    <RatingReview
+      providerName="your service provider"
+      onSubmit={(reviewData) => {
+        console.log("Review prepared:", {
+          bookingId: selectedBooking._id,
+          providerId: selectedBooking.service_provider,
+          ...reviewData,
+        });
+      }}
+    />
+  </section>
+)}
+
                 <section className='bg-white m-4 rounded flex flex-col'>
                     <h1 className='text-black font-bold text-md px-4 py-2'>
                         Recommended Providers

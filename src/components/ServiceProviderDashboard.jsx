@@ -1,8 +1,8 @@
 import ProviderSidemenu from './ProviderSidemenu'
-import { BellAlertIcon } from '@heroicons/react/24/solid';
+import NotificationBell from './NotificationBell';
 import { Bars3Icon } from '@heroicons/react/24/outline';
 import profilePicture from '../assets/Merchants/Merchant-1.jpg';
-import { useContext, useState, useEffect } from 'react';
+import { useContext, useState, useEffect, useMemo } from 'react';
 import {useNavigate} from 'react-router-dom'
 import AuthContext from '../context/AuthContext';
 import api from '../utils/api';
@@ -62,6 +62,31 @@ const ServiceProviderDashboard = () => {
         } 
 
     }
+
+    // Notifications for the bell: one entry per new (pending) request
+    const notifications = useMemo(() => {
+        return bookings
+            .filter((booking) => booking.status === 'pending')
+            .map((booking) => {
+                const customer = (customers || []).find(
+                    (c) => c.id === booking.customerId
+                );
+                const customerName = customer
+                    ? `${customer.firstName} ${customer.lastName}`
+                    : 'a customer';
+
+                return {
+                    id: `${booking._id}-${booking.status}`,
+                    type: 'info',
+                    message: `New booking request from ${customerName} for ${booking.service}.`,
+                    time: booking.createdAt || booking.updatedAt,
+                    booking,
+                };
+            })
+            .sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0))
+            .slice(0, 10);
+    }, [bookings, customers]);
+
     const sortedBookings = [...bookings].sort((a, b) => new Date(b.date) - new Date(a.date));
     const completedJobs = [...bookings].filter(booking => booking.status === 'completed')
     const newRequests = [...bookings].filter(booking => booking.status === 'pending')
@@ -92,7 +117,10 @@ const ServiceProviderDashboard = () => {
                         </div>
                     </div>
                     <div className='flex justify-end gap-4'>
-                        <BellAlertIcon className='size-8' />
+                        <NotificationBell
+                            notifications={notifications}
+                            onNotificationClick={(notification) => viewBooking(notification.booking)}
+                        />
                     </div>
                 </section>
 
