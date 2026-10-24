@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useState, useCallback } from "react";
 import AuthContext from "../context/AuthContext";
 import CustomerHeader from "../components/CustomerHeader";
 import api from "../utils/api";
@@ -13,49 +13,55 @@ const AllCustomerBookings = () => {
     const { fetchCurrentUser } = useContext(AuthContext);
     const navigate = useNavigate();
 
-    // Fetch current user
     useEffect(() => {
         const fetchUser = async () => {
             try {
                 const response = await fetchCurrentUser();
-                console.log("Current User:", response);
                 setUser(response);
             } catch (err) {
                 console.error("Error fetching the user", err.stack);
                 setError("Error fetching user details.");
+                setLoading(false);
             }
         };
         fetchUser();
-    }, [fetchCurrentUser]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
-    // Fetch bookings once user is set
-    useEffect(() => {
+    // Only the first load shows the loading page; live refreshes update silently
+    const getBookings = useCallback(async () => {
         if (!user) return;
-
-        const getBookings = async () => {
-            setLoading(true);
-            try {
-                console.log("Sending user:", user);
-                const res = await api.post("/fetch-customer-bookings", { user });
-                console.log("Fetched bookings:", res.data.data);
-                setBookings(res.data.data);
-                setLoading(false);
-            } catch (error) {
-                console.error("There was an error fetching bookings", error);
+        try {
+            const res = await api.post("/fetch-customer-bookings", { user });
+            setBookings(res.data.data || []);
+        } catch (err) {
+            // backend returns 400/404 when the customer has no bookings yet
+            if ([400, 404].includes(err.response?.status)) {
+                setBookings([]);
+            } else {
+                console.error("There was an error fetching bookings", err);
                 setError("Error fetching bookings.");
-                setLoading(false);
             }
-        };
-
-        getBookings();
+        } finally {
+            setLoading(false);
+        }
     }, [user]);
+
+    useEffect(() => {
+        getBookings();
+    }, [getBookings]);
+
+    // Refetch whenever a live notification arrives
+    useEffect(() => {
+        window.addEventListener("notification:new", getBookings);
+        return () => window.removeEventListener("notification:new", getBookings);
+    }, [getBookings]);
 
     const viewBooking = (booking) => {
         navigate("/view-customer-booking", { state: { booking } });
     };
 
-    const pendingBookings = bookings.filter((booking) => booking.status === 'accepted');
-    console.log(pendingBookings);
+    const acceptedBookings = bookings.filter((booking) => booking.status === 'accepted');
 
     if (loading) return <LoadingPage />;
     if (error) return (
@@ -70,11 +76,11 @@ const AllCustomerBookings = () => {
         <div>
             <CustomerHeader />
             <div className="p-4">
-                {pendingBookings.length === 0 ? (
+                {acceptedBookings.length === 0 ? (
                     <p className="text-center text-gray-200 text-5xl font-bold py-10">No bookings found.</p>
                 ) : (
-                    pendingBookings.map((booking, i) => (
-                        <div key={i} className="border border-gray-100 p-4 my-2 rounded shadow-md">
+                    acceptedBookings.map((booking) => (
+                        <div key={booking._id} className="border border-gray-100 p-4 my-2 rounded shadow-md">
                             <div className="flex flex-col">
                                 <h1 className="font-medium text-lg text-purple-700">{booking.service}</h1>
                                 <p className="text-sm text-gray-600">Status: <span className="font-semibold">{booking.status}</span></p>
@@ -84,7 +90,7 @@ const AllCustomerBookings = () => {
                                 <p className="text-sm text-gray-600">Problem: <span className="font-semibold">{booking.problem_description}</span></p>
                             </div>
                             <div className="mt-4">
-                                <button 
+                                <button
                                     onClick={() => viewBooking(booking)}
                                     className="text-white bg-purple-700 px-4 py-2 rounded hover:bg-purple-800"
                                 >

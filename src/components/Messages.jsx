@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext, useRef } from 'react';
+import { useState, useEffect, useContext, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import AuthContext from '../context/AuthContext';
 import CustomerHeader from './CustomerHeader';
@@ -14,29 +14,41 @@ const Messages = () => {
     const [userId, setUserId] = useState(null);
     const navigate = useNavigate();
     const [participantDetails, setParticipantDetails] = useState([]);
-    const [loading, setLoading] = useState(true);  // Added loading state
+    const [loading, setLoading] = useState(true);
     const socketRef = useRef(null);
 
     useEffect(() => {
         const fetchUser = async () => {
-            const user = await fetchCurrentUser();
-            setUser(user);
-            setUserId(user._id);
+            try {
+                const u = await fetchCurrentUser();
+                setUser(u);
+                setUserId(u._id);
+            } catch (error) {
+                console.error('Error fetching user:', error);
+                setLoading(false);
+            }
         };
         fetchUser();
-    }, [fetchCurrentUser]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
-    const fetchConversations = async () => {
+    // silent = true -> no full-page spinner (used for live refreshes)
+    const fetchConversations = useCallback(async (silent = false) => {
+        if (!userId) return;
         try {
-            setLoading(true);  // Start loading
+            if (!silent) setLoading(true);
             const res = await api.post('/get-chats', { userId });
             setConversations(res.data.data);
         } catch (error) {
             console.error('Error fetching conversations:', error);
         } finally {
-            setLoading(false);  // Stop loading
+            setLoading(false);
         }
-    };
+    }, [userId]);
+
+    useEffect(() => {
+        fetchConversations();
+    }, [fetchConversations]);
 
     useEffect(() => {
         const fetchParticipantDetails = async () => {
@@ -70,62 +82,65 @@ const Messages = () => {
         return participantDetails.find(p => p._id === recipientId);
     };
 
-    useEffect(() => {
-        if (userId) {
-            fetchConversations();
-        }
-    }, [userId]);
-
-    // Connect to the socket and listen for live updates so this list doesn't
-    // require a page refresh to show new chats or new messages.
+    // Live updates over the socket
     useEffect(() => {
         if (!userId) return;
 
-        const socketUrl = import.meta.env.VITE_SOCKET_API_URL || 'http://localhost:5000';
+        const socketUrl =
+            import.meta.env.VITE_SOCKET_URL ||
+            import.meta.env.VITE_SOCKET_API_URL ||
+            'http://localhost:5000';
         const socket = io(socketUrl);
         socketRef.current = socket;
 
-        // Join our personal room so the server's io.to(userId).emit(...) reaches us
-        socket.emit('register', { userId, userType: user?.role });
+        const register = () => socket.emit('register', { userId });
+        register();
+        socket.on('connect', register); // re-join the room after reconnects
 
-        // A brand-new conversation was created (e.g. someone messaged us for
-        // the first time) — add it to the top of the list if it's not already there.
         socket.on('new_conversation', (conversation) => {
             setConversations(prev => {
-                const exists = prev.conversations.some(c => c._id === conversation._id);
-                if (exists) return prev;
-                return {
-                    ...prev,
-                    conversations: [conversation, ...prev.conversations]
-                };
+                const list = prev.conversations || [];
+                if (list.some(c => c._id === conversation._id)) return prev;
+                return { ...prev, conversations: [conversation, ...list] };
             });
         });
 
-        // A message arrived in one of our conversations — update that
-        // conversation's preview text/time and bump it to the top.
         socket.on('receive_message', (msg) => {
+            let found = true;
             setConversations(prev => {
-                const idx = prev.conversations.findIndex(c => c._id === msg.conversationId);
-                if (idx === -1) return prev; // conversation not loaded yet, ignore
-
+                const list = prev.conversations || [];
+                const idx = list.findIndex(c => c._id === msg.conversationId);
+                if (idx === -1) {
+                    found = false;
+                    return prev;
+                }
                 const updated = {
-                    ...prev.conversations[idx],
+                    ...list[idx],
                     lastMessage: msg.message,
                     lastMessageAt: msg.createdAt || new Date().toISOString()
                 };
-
-                const rest = prev.conversations.filter((_, i) => i !== idx);
                 return {
                     ...prev,
-                    conversations: [updated, ...rest]
+                    conversations: [updated, ...list.filter((_, i) => i !== idx)]
                 };
             });
+            // Unknown conversation: reload the list quietly
+            setTimeout(() => { if (!found) fetchConversations(true); }, 0);
         });
 
         return () => {
+            socket.off('connect', register);
             socket.disconnect();
         };
-    }, [userId, user]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userId]);
+
+    // Also refresh when a notification arrives (e.g. a message notification)
+    useEffect(() => {
+        const refresh = () => fetchConversations(true);
+        window.addEventListener('notification:new', refresh);
+        return () => window.removeEventListener('notification:new', refresh);
+    }, [fetchConversations]);
 
     const goToChat = (conversation) => {
         if (conversation && user.role === 'customer') {
@@ -138,13 +153,13 @@ const Messages = () => {
     const deleteConversation = async (conversation) => {
         try {
             await api.delete(`/delete-conversation/${conversation._id}`);
-            await fetchConversations();
+            await fetchConversations(true);
         } catch (error) {
             console.error('Error deleting conversation:', error);
         }
     };
 
-    if (loading) return <LoadingPage />;  // Show loading page while fetching data
+    if (loading) return <LoadingPage />;
 
     const userConvos = Array.isArray(conversations.conversations) ? conversations.conversations : [];
 
@@ -164,7 +179,7 @@ const Messages = () => {
                                     <div
                                         onClick={() => goToChat(conversation)}
                                         key={conversation._id}
-                                        className="p-4 bg-gray-50 rounded-lg border border-gray-200 shadow-sm hover:bg-gray-100"
+                                        className="p-4 bg-gray-50 rounded-lg border border-gray-200 shadow-sm hover:bg-gray-100 cursor-pointer"
                                     >
                                         {recipient && (
                                             <div className="mb-2">

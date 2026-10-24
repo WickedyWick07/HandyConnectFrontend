@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
+import NotificationBell from './NotificationBell';
 
 const CustomerHeader = () => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -17,8 +18,8 @@ const CustomerHeader = () => {
         <div>
             <header className="flex items-center justify-between w-full p-4 bg-white relative">
                 <div className="flex items-center gap-3">
-                   <Link to="/">
-                         <h1 className="font-sans font-extrabold text-2xl">HandyConnect</h1>
+                    <Link to="/">
+                        <h1 className="font-sans font-extrabold text-2xl">HandyConnect</h1>
                     </Link>
 
                     {/* Desktop nav */}
@@ -33,18 +34,22 @@ const CustomerHeader = () => {
                     </nav>
                 </div>
 
-                {/* Hamburger button */}
-                <button
-                    className="lg:hidden"
-                    onClick={() => setIsMenuOpen(!isMenuOpen)}
-                    aria-label="Toggle menu"
-                >
-                    {isMenuOpen ? (
-                        <XMarkIcon className="size-7 text-gray-700" />
-                    ) : (
-                        <Bars3Icon className="size-7 text-gray-700" />
-                    )}
-                </button>
+                <div className="flex items-center gap-4">
+                    <NotificationBell />
+
+                    {/* Hamburger button */}
+                    <button
+                        className="lg:hidden"
+                        onClick={() => setIsMenuOpen(!isMenuOpen)}
+                        aria-label="Toggle menu"
+                    >
+                        {isMenuOpen ? (
+                            <XMarkIcon className="size-7 text-gray-700" />
+                        ) : (
+                            <Bars3Icon className="size-7 text-gray-700" />
+                        )}
+                    </button>
+                </div>
             </header>
 
             {/* Mobile menu overlay */}

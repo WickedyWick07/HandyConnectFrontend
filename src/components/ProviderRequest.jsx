@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from "react";
+import { useState, useEffect, useContext, useCallback } from "react";
 import api from "../utils/api";
 import AuthContext from "../context/AuthContext";
 import ProviderHeader from "../components/ProviderHeader";
@@ -20,34 +20,45 @@ const ProviderRequest = () => {
         setUser(res);
       } catch (error) {
         console.error("Error fetching user", error.stack);
-      }
-    };
-    fetchUser();
-  }, []);
-
-  useEffect(() => {
-    const getBookings = async () => {
-      if (!user) return; // Ensure user is fetched before calling API
-      try {
-        setLoading(true);
-        const res = await api.post("/fetch-provider-bookings", { user });
-        setBookings(res.data.bookings || []);
-        setCustomer(res.data.customers || []);
-      } catch (error) {
-        console.error("There was an error fetching bookings", error);
-      } finally {
         setLoading(false);
       }
     };
+    fetchUser();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    getBookings();
+  // Only the first load shows the loading page; live refreshes update silently
+  const getBookings = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await api.post("/fetch-provider-bookings", { user });
+      setBookings(res.data.bookings || []);
+      setCustomer(res.data.customers || []);
+    } catch (error) {
+      if (error.response?.status === 404) {
+        setBookings([]); // backend returns 404 when there are no bookings
+      } else {
+        console.error("There was an error fetching bookings", error);
+      }
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
+
+  useEffect(() => {
+    getBookings();
+  }, [getBookings]);
+
+  // Refetch whenever a live notification arrives
+  useEffect(() => {
+    window.addEventListener("notification:new", getBookings);
+    return () => window.removeEventListener("notification:new", getBookings);
+  }, [getBookings]);
 
   const viewBooking = (booking) => {
     navigate("/view-booking", { state: { booking } });
   };
 
-  // 🔥 Show Loading Page when fetching data
   if (loading) {
     return <LoadingPage />;
   }
@@ -56,7 +67,6 @@ const ProviderRequest = () => {
     <div>
       <ProviderHeader />
 
-      {/* If no bookings exist, show 'No New Requests' */}
       {bookings.length === 0 ? (
         <p className="font-bold text-2xl sm:text-3xl lg:text-5xl text-gray-200 text-center py-10 px-4">
           No New Requests
@@ -67,40 +77,26 @@ const ProviderRequest = () => {
             <table className="w-full rounded min-w-[640px]">
               <thead className="bg-gray-100">
                 <tr>
-                  <th className="p-2 border-r text-xs text-left text-gray-500">
-                    Client
-                  </th>
-                  <th className="p-2 border-r text-xs text-left text-gray-500">
-                    Service
-                  </th>
-                  <th className="p-2 border-r text-xs text-left text-gray-500">
-                    Location
-                  </th>
-                  <th className="p-2 border-r text-xs text-left text-gray-500">
-                    Date
-                  </th>
-                  <th className="p-2 border-r text-xs text-left text-gray-500">
-                    Status
-                  </th>
+                  <th className="p-2 border-r text-xs text-left text-gray-500">Client</th>
+                  <th className="p-2 border-r text-xs text-left text-gray-500">Service</th>
+                  <th className="p-2 border-r text-xs text-left text-gray-500">Location</th>
+                  <th className="p-2 border-r text-xs text-left text-gray-500">Date</th>
+                  <th className="p-2 border-r text-xs text-left text-gray-500">Status</th>
                   <th className="p-2 text-xs text-left text-gray-500">Action</th>
                 </tr>
               </thead>
               <tbody>
-                {bookings.map((booking, index) => {
+                {bookings.map((booking) => {
                   const customerData =
-                    customer?.find((cust) => cust._id === booking.user) || {};
+                    customer.find((cust) => String(cust._id) === String(booking.user)) || {};
 
                   return (
-                    <tr key={index}>
+                    <tr key={booking._id}>
                       <td className="p-2 text-xs font-semibold text-center py-5 px-4">
                         {customerData.firstName} {customerData.lastName}
                       </td>
-                      <td className="p-2 font-semibold text-xs">
-                        {booking.service}
-                      </td>
-                      <td className="p-2 font-semibold text-xs">
-                        {booking.location}
-                      </td>
+                      <td className="p-2 font-semibold text-xs">{booking.service}</td>
+                      <td className="p-2 font-semibold text-xs">{booking.location}</td>
                       <td className="p-2 font-semibold text-xs">{booking.date}</td>
                       <td className="p-2 text-xs font-medium">
                         {booking.status === "accepted" ? (

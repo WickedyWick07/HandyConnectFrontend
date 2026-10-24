@@ -5,80 +5,79 @@ import notificationSound from '../../src/assets/notification_sound.mp3';
 import notificationIcon from '../../src/assets/Icons/alarm-fill.svg'
 
 const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, bookingId }) => {
-    const [socket, setSocket] = useState(null);
     const [message, setMessage] = useState('');
     const [messages, setMessages] = useState([]);
     const [unreadMessages, setUnreadMessages] = useState(0);
     const messagesContainerRef = useRef(null);
     const messageSoundRef = useRef(null);
 
+    // Latest chatId for the socket listener (which is only set up once)
+    const chatIdRef = useRef(chatId);
     useEffect(() => {
-        // Initialize audio object when component mounts
+        chatIdRef.current = chatId;
+    }, [chatId]);
+
+    useEffect(() => {
         messageSoundRef.current = new Audio(notificationSound);
 
-        // Connect to socket server
-        const socketUrl = import.meta.env.VITE_SOCKET_API_URL || 'http://localhost:5000';
+        const socketUrl =
+            import.meta.env.VITE_SOCKET_URL ||
+            import.meta.env.VITE_SOCKET_API_URL ||
+            'http://localhost:5000';
         const newSocket = io(socketUrl);
-        setSocket(newSocket);
 
-        // Register user so the server can join this socket to a room keyed by
-        // userId — this is what makes io.to(userId).emit(...) reach us.
-        newSocket.emit('register', {
-            userId: currentUserId,
-            userType: currentUserType, // 'customer' or 'provider'
-        });
+        const register = () =>
+            newSocket.emit('register', { userId: currentUserId, userType: currentUserType });
+        register();
+        newSocket.on('connect', register); // re-join the room after reconnects
 
-        // Request notification permission immediately
-        if ("Notification" in window) {
-            if (Notification.permission === 'default') {
-                Notification.requestPermission();
-            }
+        if ("Notification" in window && Notification.permission === 'default') {
+            Notification.requestPermission();
         }
 
-        // Listen for incoming messages
         newSocket.on('receive_message', (data) => {
             // Ignore messages for a different conversation than the one open
-            if (chatId && data.conversationId && data.conversationId !== chatId) {
+            if (chatIdRef.current && data.conversationId && String(data.conversationId) !== String(chatIdRef.current)) {
                 return;
             }
 
-            // Only play sound and increment unread if message is from other user
-            if (data.senderId !== currentUserId) {
-                if (messageSoundRef.current) {
-                    messageSoundRef.current.play().catch(err => console.log('Audio play error:', err));
-                }
-                setUnreadMessages(prev => prev + 1);
-                showNotification(data.message);
-            }
+            // My own message: the optimistic copy is already on screen
+            if (String(data.senderId) === String(currentUserId)) return;
 
-            // Add message to state immediately
-            setMessages(prev => [...prev, {
-                ...data,
-                timestamp: data.timestamp || new Date().toISOString(),
-                id: data.id || `temp-${Date.now()}`
-            }]);
+            if (messageSoundRef.current) {
+                messageSoundRef.current.play().catch(err => console.log('Audio play error:', err));
+            }
+            setUnreadMessages(prev => prev + 1);
+            showNotification(data.message);
+
+            setMessages(prev => {
+                if (data._id && prev.some(m => m._id === data._id)) return prev; // already have it
+                return [...prev, {
+                    ...data,
+                    timestamp: data.timestamp || new Date().toISOString(),
+                    id: data._id || data.id || `temp-${Date.now()}`
+                }];
+            });
         });
 
-        // Cleanup on unmount
         return () => {
-            if (newSocket) newSocket.disconnect();
+            newSocket.off('connect', register);
+            newSocket.disconnect();
             if (messageSoundRef.current) {
                 messageSoundRef.current.pause();
                 messageSoundRef.current = null;
             }
         };
-    }, [currentUserId, currentUserType, chatId]);
+    }, [currentUserId, currentUserType]);
 
-    // Show browser notification
     const showNotification = (messageText) => {
         if ("Notification" in window && Notification.permission === 'granted') {
             try {
                 const notification = new Notification('New Message', {
                     body: messageText,
                     icon: notificationIcon,
-                    tag: 'chat-message', // Prevents multiple notifications from stacking
+                    tag: 'chat-message',
                 });
-
                 notification.onclick = () => {
                     window.focus();
                     notification.close();
@@ -89,12 +88,16 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
         }
     };
 
-    // Fetch existing messages for the chat room when component mounts
+    // Load existing messages (polling every 3s stays as a safety net)
     useEffect(() => {
+        if (!chatId) return;
+
+        let cancelled = false;
+
         const fetchMessages = async () => {
             try {
                 const res = await api.post("/messages", { chatId });
-                if (res.data && res.data.data) {
+                if (!cancelled && res.data?.data) {
                     setMessages(res.data.data);
                 }
             } catch (error) {
@@ -102,19 +105,21 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
             }
         };
 
-        if (chatId) {
-            fetchMessages();
-        }
-    }, [chatId]); // Refetch messages if chatId changes
+        fetchMessages();
+        const interval = setInterval(fetchMessages, 3000);
 
-    // Scroll to bottom when new messages arrive
+        return () => {
+            cancelled = true;
+            clearInterval(interval);
+        };
+    }, [chatId]);
+
     useEffect(() => {
         if (messagesContainerRef.current) {
             messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
         }
     }, [messages]);
 
-    // Reset unread count when user actively views the messages
     const handleMessagesView = () => {
         setUnreadMessages(0);
     };
@@ -128,26 +133,19 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
                 receiverId: receiverId,
                 message: message.trim(),
                 timestamp: currentTime.toISOString(),
-                tempId: `temp-${currentTime.getTime()}` // Add a temporary ID for tracking
+                tempId: `temp-${currentTime.getTime()}`
             };
 
-            // Immediately add message to UI before sending
             const optimisticMessage = {
                 ...messageData,
                 senderId: currentUserId,
                 senderType: currentUserType,
-                pending: true // Mark as pending until confirmed
+                pending: true
             };
 
             setMessages(prev => [...prev, optimisticMessage]);
-            setMessage(''); // Clear input field immediately
+            setMessage('');
 
-            // NOTE: sending now goes through the REST call only. The previous
-            // socket.emit('private_message', ...) call was removed — there was
-            // no matching backend handler for it, so it never did anything.
-            // The server emits 'receive_message' back over the socket once the
-            // REST call below persists the chat, which is what actually
-            // delivers the message to the other participant in real time.
             try {
                 const response = await api.post('/send-message', messageData);
 
@@ -155,14 +153,12 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
                     const savedChat = response.data.data.chat;
                     setMessages(prev => prev.map(msg =>
                         msg.tempId === messageData.tempId
-                            ? { ...msg, pending: false, id: savedChat._id }
+                            ? { ...msg, pending: false, id: savedChat._id, _id: savedChat._id }
                             : msg
                     ));
                 }
             } catch (error) {
                 console.error('Error sending message:', error);
-
-                // Mark message as failed
                 setMessages(prev => prev.map(msg =>
                     msg.tempId === messageData.tempId
                         ? { ...msg, error: true }
@@ -187,7 +183,7 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
                 <span className="text-sm">{currentUserType === 'service provider' ? 'Service Provider' : 'Customer'}</span>
             </div>
 
-            {/* Messages Container */}
+            {/* Messages */}
             <div
                 ref={messagesContainerRef}
                 className="flex-1 overflow-y-auto p-4 space-y-4"
@@ -198,24 +194,20 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
                     .sort((a, b) => new Date(a.createdAt || a.timestamp) - new Date(b.createdAt || b.timestamp))
                     .map((msg, index) => (
                         <div
-                            key={msg.id || msg.tempId || index}
-                            className={`flex ${msg.senderId === currentUserId ? 'justify-end' : 'justify-start'}`}
+                            key={msg._id || msg.id || msg.tempId || index}
+                            className={`flex ${String(msg.senderId) === String(currentUserId) ? 'justify-end' : 'justify-start'}`}
                         >
                             <div
                                 className={`max-w-xs px-4 py-2 rounded-lg shadow ${
-                                    msg.senderId === currentUserId
+                                    String(msg.senderId) === String(currentUserId)
                                         ? `bg-blue-500 text-white rounded-br-none ${msg.pending ? 'opacity-70' : ''}`
                                         : 'bg-gray-300 text-gray-900 rounded-bl-none'
                                 }`}
                             >
                                 <p>{msg.message}</p>
                                 <div className="flex justify-between items-center mt-1 text-xs opacity-75">
-                                    {msg.pending && (
-                                        <span>Sending...</span>
-                                    )}
-                                    {msg.error && (
-                                        <span className="text-red-300">Failed to send</span>
-                                    )}
+                                    {msg.pending && <span>Sending...</span>}
+                                    {msg.error && <span className="text-red-300">Failed to send</span>}
                                     <span className="ml-auto">
                                         {(msg.createdAt || msg.timestamp)
                                             ? new Date(msg.createdAt || msg.timestamp).toLocaleTimeString([], {
@@ -231,14 +223,14 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
                     ))}
             </div>
 
-            {/* Input Container */}
+            {/* Input */}
             <div className="bg-white py-4 px-6 border-t flex items-center">
                 <input
                     className="flex-1 bg-gray-200 rounded-full px-4 py-2 text-gray-800 focus:outline-none focus:ring focus:ring-blue-300"
                     type="text"
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                    onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
                     placeholder="Type a message..."
                 />
                 <button
