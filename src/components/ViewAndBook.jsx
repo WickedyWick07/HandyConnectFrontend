@@ -47,53 +47,32 @@ const ViewAndBook = () => {
     }
 
     const handleSubmit = async (e) => {
-        e.preventDefault()
-        if(provider ){
-            console.log("provider:", provider)
-        }
-        console.log("Form submission values:", {
-            service,
-            time,
-            date,
-            userLocation,
-            userId: user?._id,
-            providerId: provider?._id,
-            problemDescription
-        });
+        e.preventDefault();
 
-        console.log("Current user state:", user);  // Add this line
-        console.log("User ID:", user?._id); 
-        console.log("Provider ID:", provider?._id); 
-
-    
-        const formData = new FormData()
-        formData.append('service', service)
-        formData.append('time', time)
-        formData.append('date', date)
-        formData.append('location', userLocation)
-        formData.append('user', user._id)
-        formData.append('service_provider', provider._id)
-        if(problemDescription){
-            formData.append('problem_description', problemDescription)
-        }
-        for (let pair of formData.entries()) {
-            console.log(pair[0] + ': ' + pair[1]);
-        }        if (!service || !time || !date || !provider._id  || !userLocation) {
+        if (!user?._id || !service || !time || !date || !provider?._id || !userLocation) {
             alert('Please fill in all required fields.');
             return;
         }
+
         try {
-            const response = await api.post('/submit-booking', formData)
-            console.log('response:', response)
-            if(response.status === 201){
-               notify('success', 'your booking has been submitted')
-                navigate('/dashboard/customer')
+            const response = await api.post('/submit-booking', {
+                service,
+                time,
+                date,
+                location: userLocation,
+                user: user._id,
+                service_provider: provider._id,
+                problem_description: problemDescription,
+            });
+            if (response.status === 201) {
+                notify('success', 'your booking has been submitted');
+                navigate('/dashboard/customer');
             }
         } catch (error) {
-            console.error('Error submitting form', error)
-            notify('error', 'something went wrong while submitting')
+            console.error('Error submitting form', error);
+            notify('error', 'something went wrong while submitting');
         }
-    }
+    };
 
     const notify = (type, message) => {
         const options = {
@@ -150,14 +129,14 @@ const ViewAndBook = () => {
                                     <p className="text-xs text-gray-800 font-normal">{provider.description}</p>
                                     <div className="flex gap-2 items-center mt-2">
                                         
-                                        <div className="flex gap-2 items-center">
-                                            {true && ( // Replace true with verification condition
+                                        {provider.verified ? (
+                                            <div className="flex gap-2 items-center">
                                                 <div className="flex size-3 rounded-full animate-pulse bg-green-700"></div>
-                                            )}
-                                            <span className="text-black text-xs p-1 inline">
-                                                Verified Provider
-                                            </span>
-                                        </div>
+                                                <span className="text-black text-xs p-1 inline">Verified Provider</span>
+                                            </div>
+                                        ) : (
+                                            <span className="text-gray-500 text-xs p-1 inline">Not yet verified</span>
+                                        )}
                                     </div>
                                 </div>
                                 <h1 className="text-md font-medium">Services offered</h1>

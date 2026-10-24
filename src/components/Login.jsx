@@ -97,11 +97,13 @@ const Login = () => {
         try {
             const response = await login(email, password);
             console.log("server response", response.data)
-            if (response.status === 200){
-                if (response.data.user.role === 'service provider') {
-                    navigate('/dashboard/service-provider');
-                } else {
-                    navigate('/dashboard/customer');}
+            const role = response.data.user.role;
+            if (role === 'admin') {
+                navigate('/admin');
+            } else if (role === 'service provider') {
+                navigate('/dashboard/service-provider');
+            } else {
+                navigate('/dashboard/customer');
             }
         } catch (error) {
             console.error(error.message);

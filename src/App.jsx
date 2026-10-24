@@ -23,6 +23,8 @@ import ProviderRequest from './components/ProviderRequest';
 import ProviderHistory from './components/ProviderHistory';
 import Schedule from './components/Schedule'
 import Help from './components/Help';
+import AdminRoute from './components/AdminRoute';
+import AdminDashboard from './components/AdminDashboard';
 
 const App = () => {
   return (
@@ -62,6 +64,8 @@ const App = () => {
           <Route path="/service-provider/history" element={<ProviderHistory />} />
           <Route path='/provider-schedule' element={<Schedule />}/>
           <Route path="/help" element={<Help />} />
+          <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+
 
 
         </Routes>

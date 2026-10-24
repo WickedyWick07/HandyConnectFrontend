@@ -1,77 +1,83 @@
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useState, useCallback } from 'react';
 import AuthContext from '../context/AuthContext';
 import CustomerHeader from '../components/CustomerHeader';
-import ProviderHeader from '../components/ProviderHeader';	
+import ProviderHeader from '../components/ProviderHeader';
 import api from '../utils/api';
 import LoadingPage from './LoadingPage';
+
+const PAGE_SIZE = 5;
 
 const History = () => {
     const [bookings, setBookings] = useState([]);
     const { fetchCurrentUser } = useContext(AuthContext);
     const [user, setUser] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
-    const [endIndex, setEndIndex] = useState(5); // Number of bookings to display per page
-    const [loading, setLoading] = useState(true); // Added loading state
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
     useEffect(() => {
         const fetchUser = async () => {
-            setLoading(true);
             try {
                 const response = await fetchCurrentUser();
-                console.log("Current User:", response);
                 setUser(response);
             } catch (err) {
                 console.error("Error fetching the user", err.stack);
-                setError(err)
-            } finally {
+                setError("Error fetching user details.");
                 setLoading(false);
             }
         };
         fetchUser();
-    }, [fetchCurrentUser]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
-    useEffect(() => {
-        const getBookings = async () => {
-            if (!user) return;
-            setLoading(true);
-            try {
-                console.log("Sending user:", user);
+    const getBookings = useCallback(async () => {
+        if (!user) return;
+        try {
+            if (user.role === 'customer') {
                 const res = await api.post('/fetch-customer-bookings', { user });
-                console.log('Fetched bookings:', res.data.data);
-                setBookings(res.data.data);
-            } catch (error) {
-                console.error('There was an error fetching bookings', error);
-            } finally {
-                setLoading(false);
+                setBookings(res.data.data || []);
+            } else {
+                const res = await api.post('/fetch-provider-bookings', { user });
+                setBookings(res.data.bookings || []);
             }
-        };
-        getBookings();
+        } catch (err) {
+            if ([400, 404].includes(err.response?.status)) {
+                setBookings([]);
+            } else {
+                console.error('There was an error fetching bookings', err);
+                setError('Error fetching bookings.');
+            }
+        } finally {
+            setLoading(false);
+        }
     }, [user]);
 
-    const handlePrevious = () => {
-        if (currentPage > 1) {
-            setCurrentPage((prevPage) => prevPage - 1);
-            setEndIndex((prevIndex) => prevIndex - 5);
-        }
-    };
+    useEffect(() => {
+        getBookings();
+    }, [getBookings]);
 
-    const handleNext = () => {
-        if (endIndex < bookings.length) {
-            setCurrentPage((prevPage) => prevPage + 1);
-            setEndIndex((prevIndex) => prevIndex + 5);
-        }
-    };
+    // Refetch whenever a live notification arrives
+    useEffect(() => {
+        window.addEventListener('notification:new', getBookings);
+        return () => window.removeEventListener('notification:new', getBookings);
+    }, [getBookings]);
 
     const sortedBookings = bookings
         .filter((booking) => booking.date)
         .sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    const paginatedBookings = sortedBookings.slice((currentPage - 1) * 5, endIndex);
+    const totalPages = Math.max(1, Math.ceil(sortedBookings.length / PAGE_SIZE));
+    const paginatedBookings = sortedBookings.slice(
+        (currentPage - 1) * PAGE_SIZE,
+        currentPage * PAGE_SIZE
+    );
+
+    const handlePrevious = () => setCurrentPage((p) => Math.max(1, p - 1));
+    const handleNext = () => setCurrentPage((p) => Math.min(totalPages, p + 1));
 
     return (
         <div className="bg-gray-100 min-h-screen">
-            {user?.role === 'customer' ? <CustomerHeader /> : <ProviderHeader /> }
+            {user?.role === 'customer' ? <CustomerHeader /> : <ProviderHeader />}
             <main>
                 <div>
                     <h1 className="text-2xl font-semibold text-left px-4 py-2">Booking History</h1>
@@ -84,7 +90,7 @@ const History = () => {
                     <LoadingPage />
                 ) : bookings.length === 0 ? (
                     <div className="text-center py-6">
-                        <p className="text-lg font-semibold text-gray-600">No new bookings</p>
+                        <p className="text-lg font-semibold text-gray-600">No bookings yet</p>
                     </div>
                 ) : (
                     <div>
@@ -126,15 +132,18 @@ const History = () => {
                         <div className="flex justify-between mx-2 mt-4">
                             <button
                                 onClick={handlePrevious}
-                                className="px-4 py-2 bg-gray-200 rounded shadow hover:bg-gray-300"
+                                className="px-4 py-2 bg-gray-200 rounded shadow hover:bg-gray-300 disabled:opacity-50"
                                 disabled={currentPage === 1}
                             >
                                 Previous
                             </button>
+                            <span className="text-xs text-gray-500 self-center">
+                                Page {currentPage} of {totalPages}
+                            </span>
                             <button
                                 onClick={handleNext}
-                                className="px-4 py-2 bg-gray-200 rounded shadow hover:bg-gray-300"
-                                disabled={endIndex >= bookings.length}
+                                className="px-4 py-2 bg-gray-200 rounded shadow hover:bg-gray-300 disabled:opacity-50"
+                                disabled={currentPage >= totalPages}
                             >
                                 Next
                             </button>
