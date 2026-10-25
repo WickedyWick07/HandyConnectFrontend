@@ -8,75 +8,98 @@ import api from "../utils/api";
 function CustomerChat() {
     const location = useLocation();
     const chat = location.state?.conversation;
-    const booking = location.state?.booking;
-    const providerInfo = location.state?.providerInfo;
-
-    const [chatId, setChatId] = useState(chat?._id || null);
-    const [provider, setProvider] = useState(null); // provider's USER id (string)
+    const [chatId, setChatId] = useState(chat?._id || null)
+    const [provider, setProvider] = useState(null);
     const [user, setUser] = useState(null);
+    const booking = location.state?.booking
+
     const { fetchCurrentUser } = useContext(AuthContext);
+    const providerInfo = location.state?.providerInfo
 
-    const bookingId = chat?.context || booking?._id;
+    console.log("chat info:", chat);
+    console.log("provider info:", providerInfo);
+    console.log('booking', booking
+    )
+    
+    const bookingId = chat.context
+    console.log('booking ID:', bookingId)
+    
 
+    
+         
     useEffect(() => {
         if (providerInfo) {
-            setProvider(providerInfo._id || providerInfo);
+            setProvider(providerInfo);
         }
-    }, [providerInfo]);
+    }, [providerInfo]); // Only run when providerInfo changes
 
     useEffect(() => {
+        // Fetch the current user
         const fetchUser = async () => {
             try {
                 const res = await fetchCurrentUser();
+                console.log("customer info:", res);
                 setUser(res);
             } catch (error) {
                 console.error("Error fetching user:", error);
             }
         };
         fetchUser();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [fetchCurrentUser]);
 
     useEffect(() => {
+        // Wait for `user` and `chat` to be defined
+        
         if (user && chat?.participants) {
-            const otherParticipant = chat.participants.find(
+            const participants = [...chat.participants]; // Copy the array
+            const otherParticipant = participants.find(
                 (participant) => participant._id !== user._id
             );
             if (otherParticipant) {
-                setProvider(otherParticipant._id);
+                console.log('other participant:', otherParticipant);
+                setProvider(otherParticipant._id); // Set the provider's ID
             }
         }
+
     }, [user, chat]);
+
+    console.log("provider id:", provider);
 
     useEffect(() => {
         const initializeChat = async () => {
-            if (!chatId && user && provider && bookingId) {
+            if (!chatId && user && provider) {
                 try {
                     const response = await api.post("/send-message", {
                         senderId: user._id,
-                        receiverId: provider,
-                        context: bookingId,
+                        receiverId: provider._id,
+                        context:{bookingId: booking._id}
                     });
-                    setChatId(response.data.data.conversation._id);
+                    console.log("Chat initialized:", response.data.data);
+                    setChatId(response.data.data.conversation._id); // Set the new chat ID
                 } catch (error) {
                     console.error("Error initializing chat:", error);
                 }
             }
         };
-
+    
         initializeChat();
-    }, [chatId, user, provider, bookingId]);
+    }, [chatId, user, provider]);
+
+
+   
 
     return (
         <div>
-            <CustomerHeader />
+            <div>
+                <CustomerHeader />
+            </div>
 
             {user && provider && (
                 <ChatComponent
                     currentUserId={user._id}
                     bookingId={bookingId}
                     currentUserType={user.role}
-                    receiverId={provider}
+                    receiverId={provider || provider._id}
                     chatId={chatId}
                 />
             )}

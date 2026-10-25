@@ -67,18 +67,25 @@ const Services = () => {
         <section>
           <div>
             <h1 className="text-xl font-semibold m-4 text-center underline underline-offset-1">Available Handyman Services</h1>
-            <div className="flex flex-col gap-4">
-              
+            <div className="flex justify-center items-center">
+              {/* Previous Button */}
+              <button
+                className="px-4 py-2 bg-gray-300 rounded-l"
+                onClick={handlePrevious}
+                disabled={currentPage === 0}
+              >
+                Previous
+              </button>
 
               {/* Services List */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full px-4">
+              <div className="flex gap-4">
                 {currentServices.map((service, index) => (
-                  <div className="p-4 w-full max-w-sm mx-auto" key={index}>
+                  <div className="border p-4 border-none mx-3" key={index}>
                     <h1 className="font-semibold text-xl">{service.Title}</h1>
                     <p className="text-sm text-gray-700">{service.Description}</p>
                     <button
                       onClick={() => toggleServices(index + startIndex)} // Ensure correct index mapping
-                      className="my-4 w-full md:w-auto border hover:bg-purple-500 hover:text-white font-semibold rounded border-purple-700 text-purple-700 px-4 py-2"
+                      className="my-4 border hover:bg-purple-500 hover:text-white font-semibold rounded border-purple-700 text-purple-700 px-4 py-2"
                     >
                       {openServices[index + startIndex] ? 'Hide Services' : 'View Services'}
                     </button>
@@ -90,7 +97,7 @@ const Services = () => {
                           ))}
                         </ul>
                        
-                      </div> 
+                      </div>
                     )}
                     <section>
                         <h1 className='text-md font-semibold '>Service Details</h1>
@@ -103,25 +110,16 @@ const Services = () => {
                     </section>
                   </div>
                 ))}
-              </div><div className="flex justify-between items-center w-full px-4 mt-6">
-  <button
-    className="px-4 py-2 bg-gray-300 rounded"
-    onClick={handlePrevious}
-    disabled={currentPage === 0}
-  >
-    Previous
-  </button>
+              </div>
 
-  <button
-    className="px-4 py-2 bg-gray-300 rounded"
-    onClick={handleNext}
-    disabled={endIndex >= services.length}
-  >
-    Next
-  </button>
-</div>
-
-              
+              {/* Next Button */}
+              <button
+                className="px-4 py-2 bg-gray-300 rounded-r"
+                onClick={handleNext}
+                disabled={endIndex >= services.length}
+              >
+                Next
+              </button>
             </div>
           </div>
         </section>

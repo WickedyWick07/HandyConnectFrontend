@@ -1,6 +1,6 @@
-import NotificationBell from './NotificationBell';
-import RatingReview from './RatingReview';
-import { Bars3Icon } from '@heroicons/react/24/outline';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Menu, Bell, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
     Carpentry,
     Plumbing,
@@ -11,36 +11,214 @@ import {
     HomeAutomation,
     ExteriorMaintenance,
 } from '../constants/Services';
-import { useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { toast } from 'react-toastify';
 import AuthContext from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
 import SideMenu from './SideMenu';
 import api from '../utils/api';
 
-const imgUrl = (p) =>
-    !p ? '/default-placeholder.png'
-    : p.startsWith('http') ? p
-    : `${import.meta.env.VITE_IMAGES_API_URL}${p.startsWith('/') ? '' : '/'}${p}`;
+/* -------------------------------------------------------------------------- */
+/* Static data                                                                 */
+/* -------------------------------------------------------------------------- */
+
+// Category label is attached per group so cards can show it.
+// The original service objects are passed through untouched to /service-providers.
+const SERVICE_GROUPS = [
+    { category: 'Carpentry', items: Carpentry },
+    { category: 'Plumbing', items: Plumbing },
+    { category: 'Home Installation', items: HomeInstallation },
+    { category: 'Painting', items: Painting },
+    { category: 'Flooring', items: Flooring },
+    { category: 'Home Care', items: HomeCare },
+    { category: 'Home Automation', items: HomeAutomation },
+    { category: 'Exterior Maintenance', items: ExteriorMaintenance },
+];
+
+const SERVICES = SERVICE_GROUPS.flatMap(({ category, items }) =>
+    items.map((item) => ({ category, item }))
+);
+
+// Matches the Tailwind grid breakpoints used by the services grid (1 / 2 / 3 / 4 columns)
+const COLUMN_QUERIES = [
+    ['(min-width: 1280px)', 4],
+    ['(min-width: 1024px)', 3],
+    ['(min-width: 768px)', 2],
+];
+
+/* -------------------------------------------------------------------------- */
+/* Helpers                                                                     */
+/* -------------------------------------------------------------------------- */
+
+const getColumns = () => {
+    if (typeof window === 'undefined') return 1;
+    for (const [query, columns] of COLUMN_QUERIES) {
+        if (window.matchMedia(query).matches) return columns;
+    }
+    return 1;
+};
+
+const useColumns = () => {
+    const [columns, setColumns] = useState(getColumns);
+    useEffect(() => {
+        const lists = COLUMN_QUERIES.map(([query]) => window.matchMedia(query));
+        const update = () => setColumns(getColumns());
+        lists.forEach((l) => l.addEventListener('change', update));
+        return () => lists.forEach((l) => l.removeEventListener('change', update));
+    }, []);
+    return columns;
+};
+
+const byDate = (a, b) => new Date(a.date) - new Date(b.date);
+
+const STATUS_STYLES = {
+    pending: 'bg-yellow-100 text-yellow-800',
+    accepted: 'bg-green-100 text-green-800',
+};
+
+/* -------------------------------------------------------------------------- */
+/* Cards                                                                       */
+/* -------------------------------------------------------------------------- */
+
+const ServiceCard = ({ category, service, onSelect }) => (
+    <button
+        type="button"
+        onClick={() => onSelect(service)}
+        className="flex h-full min-h-[160px] w-full min-w-0 flex-col gap-2 overflow-hidden rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+    >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-purple-50">
+            <img src={service.Icon} alt="" className="h-5 w-5 object-contain" />
+        </span>
+        <span className="truncate text-xs font-medium text-purple-600">{category}</span>
+        <span className="line-clamp-2 break-words text-sm font-semibold text-gray-900">{service.Title}</span>
+        <span className="line-clamp-3 break-words text-xs text-gray-500">{service.Description}</span>
+    </button>
+);
+
+const BookingCard = ({ booking, onView }) => (
+    <li className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-3 rounded-lg border border-gray-200 p-4 transition-shadow hover:shadow-sm sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-x-4">
+        <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-gray-900">{booking.service}</p>
+            <p className="mt-0.5 break-words text-xs text-gray-500">
+                Booked for: {booking.date} at {booking.time}
+            </p>
+        </div>
+        <span
+            className={`justify-self-end rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${
+                STATUS_STYLES[booking.status] || 'bg-gray-100 text-gray-800'
+            }`}
+        >
+            {booking.status}
+        </span>
+        <button
+            type="button"
+            onClick={() => onView(booking)}
+            className="col-span-2 w-full rounded-lg border border-purple-700 px-4 py-2 text-xs font-medium text-purple-700 transition-colors hover:bg-purple-700 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 sm:col-span-1 sm:w-auto"
+        >
+            View Details
+        </button>
+    </li>
+);
+
+const BookingsSection = ({ id, title, bookings, emptyText, onView }) => (
+    <section aria-labelledby={id} className="rounded-xl bg-white p-4 shadow-sm md:p-6">
+        <h2 id={id} className="mb-4 text-base font-bold text-gray-900">
+            {title}
+        </h2>
+        {bookings.length > 0 ? (
+            <ul className="space-y-3">
+                {bookings.map((booking, i) => (
+                    <BookingCard key={booking._id || booking.id || i} booking={booking} onView={onView} />
+                ))}
+            </ul>
+        ) : (
+            <p className="py-8 text-center text-lg font-semibold text-gray-300 sm:text-2xl">{emptyText}</p>
+        )}
+    </section>
+);
+
+const ProviderAvatar = ({ provider }) => {
+    const pic = provider.profilePicture;
+    const name = provider.companyName || 'Provider';
+    const sources = !pic
+        ? []
+        : pic.startsWith('http')
+          ? [pic]
+          : [`${import.meta.env.VITE_IMAGES_API_URL}${pic}`, `https://localhost:5000${pic}`];
+    const [attempt, setAttempt] = useState(0);
+
+    if (attempt >= sources.length) {
+        return (
+            <span
+                aria-hidden="true"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-purple-100 text-sm font-bold text-purple-700"
+            >
+                {name.charAt(0).toUpperCase()}
+            </span>
+        );
+    }
+
+    return (
+        <img
+            src={sources[attempt]}
+            alt={provider.companyName || 'Provider profile'}
+            onError={() => setAttempt((a) => a + 1)}
+            className="h-10 w-10 shrink-0 rounded-full object-cover"
+        />
+    );
+};
+
+const ProviderCard = ({ provider }) => (
+    <li className="flex h-full min-w-0 flex-col gap-3 rounded-xl border border-gray-200 p-4">
+        <div className="flex min-w-0 items-center gap-3">
+            <ProviderAvatar provider={provider} />
+            <h3 className="min-w-0 truncate text-sm font-semibold text-gray-900">{provider.companyName}</h3>
+        </div>
+        <p className="line-clamp-3 break-words text-xs text-gray-500">{provider.description}</p>
+    </li>
+);
+
+const NotificationButton = ({ className = '' }) => (
+    <button
+        type="button"
+        aria-label="Notifications"
+        className={`rounded-full p-2 text-gray-700 transition-colors hover:bg-gray-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${className}`}
+    >
+        <Bell className="h-6 w-6" aria-hidden="true" />
+    </button>
+);
+
+/* -------------------------------------------------------------------------- */
+/* Page                                                                        */
+/* -------------------------------------------------------------------------- */
 
 const CustomerDashboard = () => {
-    const [bookings, setBookings] = useState([])
-    const { fetchCurrentUser } = useContext(AuthContext)
-    const [user, setUser] = useState(null)
-    const navigate = useNavigate()
-    const [serviceProviders, setServiceProviders] = useState([])
-    const [isMenuOpen, setIsMenuOpen] = useState(false)
-    const [selectedBooking, setSelectedBooking] = useState(null);
-    const [reviewed, setReviewed] = useState({}); // { bookingId: rating }
-    const reviewRef = useRef(null);
+    const navigate = useNavigate();
+    const { fetchCurrentUser } = useContext(AuthContext);
 
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const menuButtonRef = useRef(null);
+
+    const [user, setUser] = useState(null);
+    const [bookings, setBookings] = useState([]);
+    const [serviceProviders, setServiceProviders] = useState([]);
+    const [currentPage, setCurrentPage] = useState(0);
+
+    const columns = useColumns();
+    const pageSize = columns === 1 ? 4 : columns * 2;
+    const totalPages = Math.max(1, Math.ceil(SERVICES.length / pageSize));
+    const page = Math.min(currentPage, totalPages - 1);
+    const visibleServices = SERVICES.slice(page * pageSize, page * pageSize + pageSize);
+
+    const closeSidebar = useCallback(() => {
+        setSidebarOpen(false);
+        menuButtonRef.current?.focus();
+    }, []);
+
+    /* ---- Data ---------------------------------------------------------- */
     useEffect(() => {
         const fetchUser = async () => {
             try {
-                const response = await fetchCurrentUser();
-                setUser(response);
+                setUser(await fetchCurrentUser());
             } catch (err) {
-                console.error("Error fetching the user", err.stack);
+                console.error('Error fetching the user', err.stack);
             }
         };
 
@@ -49,268 +227,154 @@ const CustomerDashboard = () => {
                 const response = await api.get('/fetch-service-providers');
                 setServiceProviders(response.data.data);
             } catch (error) {
-                console.error("Error fetching all providers:", error);
-            }
-        };
-
-        const fetchMyReviews = async () => {
-            try {
-                const res = await api.get('/reviews/mine');
-                const map = {};
-                (res.data.data || []).forEach((r) => { map[r.booking] = r.rating; });
-                setReviewed(map);
-            } catch (error) {
-                console.error("Error fetching my reviews:", error);
+                console.error('Error fetching all providers:', error);
             }
         };
 
         fetchUser();
         fetchAllProviders();
-        fetchMyReviews();
     }, []);
 
-    const getBookings = useCallback(async () => {
-        if (!user) return;
-        try {
-            const res = await api.post('/fetch-customer-bookings', { user });
-            setBookings(res.data.data);
-        } catch (error) {
-            console.error('There was an error fetching bookings', error);
-        }
+    useEffect(() => {
+        if (!user) return; // wait until the user is loaded
+        const getBookings = async () => {
+            try {
+                const res = await api.post('/fetch-customer-bookings', { user });
+                setBookings(res.data.data);
+            } catch (error) {
+                console.error('There was an error fetching bookings', error);
+            }
+        };
+        getBookings();
     }, [user]);
 
-    useEffect(() => { getBookings(); }, [getBookings]);
+    const pendingBookings = useMemo(
+        () => bookings.filter((b) => b.status === 'pending').sort(byDate).slice(0, 3),
+        [bookings]
+    );
+    const acceptedBookings = useMemo(
+        () => bookings.filter((b) => b.status === 'accepted').sort(byDate).slice(0, 3),
+        [bookings]
+    );
 
-    // Refetch whenever a live notification arrives
-    useEffect(() => {
-        window.addEventListener('notification:new', getBookings);
-        return () => window.removeEventListener('notification:new', getBookings);
-    }, [getBookings]);
-
-    // Scroll the review form into view when it opens
-    useEffect(() => {
-        if (selectedBooking && reviewRef.current) {
-            reviewRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-    }, [selectedBooking]);
-
-    const submitReview = async ({ rating, review }) => {
-        // RatingReview shows the server's error message if this throws
-        await api.post('/reviews', {
-            bookingId: selectedBooking._id,
-            rating,
-            review,
-        });
-        setReviewed((prev) => ({ ...prev, [selectedBooking._id]: rating }));
-        toast.success('Thanks! Your review has been submitted.');
-        setSelectedBooking(null);
-    };
-
-    const viewBooking = (booking) => {
-        navigate('/view-customer-booking', { state: { booking } })
-    }
-
-    const goToService = (service) => {
-        navigate('/service-providers', { state: { service } })
-    }
-
-    const services = [
-        ...Carpentry,
-        ...Plumbing,
-        ...HomeInstallation,
-        ...Painting,
-        ...Flooring,
-        ...HomeCare,
-        ...HomeAutomation,
-        ...ExteriorMaintenance,
-    ];
-
-    const byDate = (a, b) => new Date(a.date) - new Date(b.date);
-    const completed = bookings.filter((b) => b.status === 'completed');
+    /* ---- Actions ------------------------------------------------------- */
+    const viewBooking = (booking) => navigate('/view-customer-booking', { state: { booking } });
+    const goToService = (service) => navigate('/service-providers', { state: { service } });
 
     return (
-        <div className='flex bg-slate-100 min-h-screen'>
-            <SideMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
-            <main className="flex-1 min-w-0 p-4 max-w-7xl mx-auto w-full">
-                <section className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-4">
-                    <div className='flex items-center gap-3'>
-                        <button
-                            className="lg:hidden"
-                            onClick={() => setIsMenuOpen(true)}
-                            aria-label="Open menu"
-                        >
-                            <Bars3Icon className="size-7 text-gray-700" />
-                        </button>
-                        <div className='flex flex-col'>
-                            <h1 className='font-bold'>
+        <div className="flex min-h-screen w-full overflow-x-clip bg-slate-100">
+            <SideMenu open={sidebarOpen} onClose={closeSidebar} />
+
+            <div className="min-w-0 flex-1">
+                {/* Top bar: mobile only */}
+                <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-gray-200 bg-white/90 px-4 backdrop-blur md:hidden">
+                    <button
+                        ref={menuButtonRef}
+                        type="button"
+                        onClick={() => setSidebarOpen(true)}
+                        aria-label="Open menu"
+                        aria-expanded={sidebarOpen}
+                        aria-controls="side-menu"
+                        className="-ml-2 rounded-md p-2 text-gray-800 transition-colors hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+                    >
+                        <Menu className="h-6 w-6" aria-hidden="true" />
+                    </button>
+                    <span className="text-lg font-extrabold text-black">HandyConnect</span>
+                    <NotificationButton className="-mr-2" />
+                </header>
+
+                <main className="mx-auto w-full max-w-7xl space-y-6 p-4 md:p-6">
+                    {/* Welcome */}
+                    <section className="flex items-center justify-between gap-4">
+                        <div className="min-w-0">
+                            <h1 className="truncate text-xl font-bold text-gray-900 md:text-2xl">
                                 Welcome back, {user ? user.firstName : 'Guest'}!
                             </h1>
-                            <p className='text-xs font-light'>
+                            <p className="mt-1 text-sm text-gray-500">
                                 Find the perfect service provider for your needs
                             </p>
                         </div>
-                    </div>
-                    <div className='flex justify-end gap-4'>
-                        <NotificationBell />
-                    </div>
-                </section>
+                        <NotificationButton className="hidden md:inline-flex" />
+                    </section>
 
-                <section className="mb-6 min-w-0">
-                    <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-hide snap-x snap-mandatory">
-                        {services.map((service, i) => (
-                            <div
-                                key={i}
-                                onClick={() => goToService(service)}
-                                className="min-w-[260px] sm:min-w-[280px] bg-white rounded-lg shadow p-5 cursor-pointer hover:shadow-lg transition snap-start flex-shrink-0"
-                            >
-                                <div className="flex justify-center">
-                                    <img src={service.Icon} alt={service.Title} className="h-6 w-6" />
-                                </div>
-                                <h2 className="text-center font-semibold mt-3">{service.Title}</h2>
-                                <p className="text-sm text-gray-600 text-center mt-2">{service.Description}</p>
-                            </div>
-                        ))}
-                    </div>
-                </section>
-
-                <section className="bg-white rounded-lg shadow mt-6">
-                    <h1 className='text-black font-bold text-md px-4 py-2'>Pending Bookings</h1>
-                    <div className='p-4'>
-                        {bookings.some(b => b.status === 'pending') ? bookings.filter((booking) => booking.status === 'pending').sort(byDate).slice(0, 3).map((booking) => (
-                            <div key={booking._id} className='border border-gray-100 my-2 rounded'>
-                                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-4">
-                                    <div className='flex items-center'>
-                                        <div className='flex flex-col'>
-                                            <h1 className='font-medium text-sm'>{booking.service}</h1>
-                                            <p className='text-xs font-light'>Booked for: {booking.date} at {booking.time}</p>
-                                        </div>
-                                    </div>
-                                    <div className='bg-yellow-400 px-3 py-2 rounded-full text-xs font-semibold '>
-                                        <p>{booking.status}</p>
-                                    </div>
-                                    <div className='m-4  hover:bg-purple-700 border border-purple-700 rounded'>
-                                        <button onClick={() => viewBooking(booking)} className='text-xs hover:text-white font-medium text-purple-700 px-4 py-1'>
-                                            View Details
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        )) : <p className="text-xl sm:text-3xl lg:text-5xl text-gray-200 text-center py-10 font-bold">No Pending Bookings</p>}
-                    </div>
-                </section>
-
-                <section className="bg-white rounded-lg shadow mt-6">
-                    <h1 className='text-black font-bold text-md px-4 py-2'>Accepted Bookings</h1>
-                    <div className='p-4'>
-                        {bookings.some(b => b.status === 'accepted') ? bookings.filter((booking) => booking.status === 'accepted').sort(byDate).slice(0, 3).map((booking) => (
-                            <div key={booking._id} className='border border-gray-100 my-2 rounded'>
-                                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-4">
-                                    <div className='flex items-center'>
-                                        <div className='flex flex-col'>
-                                            <h1 className='font-medium text-sm'>{booking.service}</h1>
-                                            <p className='text-xs font-light'>Booked for: {booking.date} at {booking.time}</p>
-                                        </div>
-                                    </div>
-                                    <div className='bg-yellow-400 px-3 py-2 rounded-full text-xs font-semibold '>
-                                        <p>{booking.status}</p>
-                                    </div>
-                                    <div className='m-4  hover:bg-purple-700 border border-purple-700 rounded'>
-                                        <button onClick={() => viewBooking(booking)} className='text-xs hover:text-white font-medium text-purple-700 px-4 py-1'>
-                                            View Details
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        )) : <p className="text-xl sm:text-3xl lg:text-5xl text-gray-200 text-center py-10 font-bold">No Accepted Bookings</p>}
-                    </div>
-                </section>
-
-                <section className="bg-white rounded-lg shadow mt-6">
-                    <h1 className="text-black font-bold text-md px-4 py-2">Completed Bookings</h1>
-                    <div className="p-4">
-                        {completed.length > 0 ? (
-                            completed.map((booking) => (
-                                <div
-                                    key={booking._id}
-                                    className="border border-gray-100 my-2 rounded p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+                    {/* Services */}
+                    <section aria-labelledby="services-heading">
+                        <div className="mb-4 flex items-center justify-between gap-3">
+                            <h2 id="services-heading" className="text-base font-bold text-gray-900">
+                                Recommended Services
+                            </h2>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-500" aria-live="polite">
+                                    {page + 1} / {totalPages}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setCurrentPage(Math.max(0, page - 1))}
+                                    disabled={page === 0}
+                                    aria-label="Previous services"
+                                    className="rounded-lg border border-gray-300 bg-white p-2 text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 disabled:cursor-not-allowed disabled:opacity-40"
                                 >
-                                    <div>
-                                        <h2 className="font-medium text-sm">{booking.service}</h2>
-                                        <p className="text-xs text-gray-500">
-                                            Booked for: {booking.date} at {booking.time}
-                                        </p>
-                                        <p className="text-sm text-green-700 font-semibold mt-1">Completed</p>
-                                    </div>
-
-                                    {reviewed[booking._id] ? (
-                                        <span className="text-sm font-medium text-yellow-600 bg-yellow-50 border border-yellow-200 px-4 py-2 rounded">
-                                            Reviewed ★ {reviewed[booking._id]}
-                                        </span>
-                                    ) : (
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedBooking(booking)}
-                                            className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded"
-                                        >
-                                            Rate &amp; Review
-                                        </button>
-                                    )}
-                                </div>
-                            ))
-                        ) : (
-                            <p className="text-sm text-gray-500 py-4">
-                                You don't have any completed bookings yet.
-                            </p>
-                        )}
-                    </div>
-                </section>
-
-                {selectedBooking && (
-                    <section ref={reviewRef} className="bg-white rounded-lg shadow mt-6 p-4">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="font-bold text-lg">Write Your Review</h2>
-                            <button
-                                type="button"
-                                onClick={() => setSelectedBooking(null)}
-                                className="text-gray-600 hover:text-gray-900"
-                            >
-                                Close
-                            </button>
+                                    <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setCurrentPage(Math.min(totalPages - 1, page + 1))}
+                                    disabled={page >= totalPages - 1}
+                                    aria-label="Next services"
+                                    className="rounded-lg border border-gray-300 bg-white p-2 text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 disabled:cursor-not-allowed disabled:opacity-40"
+                                >
+                                    <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                                </button>
+                            </div>
                         </div>
 
-                        <p className="text-sm text-gray-600 mb-4">Service: {selectedBooking.service}</p>
-
-                        <RatingReview providerName="your service provider" onSubmit={submitReview} />
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                            {visibleServices.map(({ category, item }, i) => (
+                                <ServiceCard
+                                    key={`${category}-${item.Title}-${i}`}
+                                    category={category}
+                                    service={item}
+                                    onSelect={goToService}
+                                />
+                            ))}
+                        </div>
                     </section>
-                )}
 
-                <section className='bg-white m-4 rounded flex flex-col'>
-                    <h1 className='text-black font-bold text-md px-4 py-2'>Recommended Providers</h1>
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                        {serviceProviders.slice(0, 3).map((providers, i) => (
-                            <div key={i} className="bg-white rounded-lg p-4 shadow flex flex-col items-center text-center">
-                                <div className='flex items-center'>
-                                    <img
-                                        src={imgUrl(providers.profilePicture)}
-                                        alt={providers.companyName || 'Provider profile'}
-                                        className="w-10 h-10 rounded-full object-cover"
-                                        onError={(e) => {
-                                            e.target.onerror = null;
-                                            e.target.src = '/default-placeholder.png';
-                                        }}
-                                    />
-                                    <div className='flex flex-col m-1'>
-                                        <h1 className='text-sm font-medium'>{providers.companyName}</h1>
-                                    </div>
-                                </div>
-                                <p className='text-xs'>{providers.description}</p>
-                            </div>
-                        ))}
-                    </div>
-                </section>
-            </main>
+                    {/* Bookings */}
+                    <BookingsSection
+                        id="pending-heading"
+                        title="Pending Bookings"
+                        bookings={pendingBookings}
+                        emptyText="No pending bookings"
+                        onView={viewBooking}
+                    />
+                    <BookingsSection
+                        id="accepted-heading"
+                        title="Accepted Bookings"
+                        bookings={acceptedBookings}
+                        emptyText="No accepted bookings"
+                        onView={viewBooking}
+                    />
+
+                    {/* Providers */}
+                    <section aria-labelledby="providers-heading" className="rounded-xl bg-white p-4 shadow-sm md:p-6">
+                        <h2 id="providers-heading" className="mb-4 text-base font-bold text-gray-900">
+                            Recommended Providers
+                        </h2>
+                        {serviceProviders.length > 0 ? (
+                            <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                                {serviceProviders.slice(0, 3).map((provider, i) => (
+                                    <ProviderCard key={provider._id || provider.id || i} provider={provider} />
+                                ))}
+                            </ul>
+                        ) : (
+                            <p className="py-6 text-center text-sm text-gray-400">No providers available yet</p>
+                        )}
+                    </section>
+                </main>
+            </div>
         </div>
     );
 };
 
-export default CustomerDashboard
+export default CustomerDashboard;
