@@ -138,7 +138,6 @@ const ServiceProviderDashboard = () => {
                             notifications={notifications}
                             onNotificationClick={(notification) => viewBooking(notification.booking)}
                         />
-                        <NotificationBell />
                     </div>
                 </section>
 
