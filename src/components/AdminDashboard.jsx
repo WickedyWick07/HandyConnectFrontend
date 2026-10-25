@@ -64,7 +64,9 @@ export default function AdminDashboard() {
     const [search, setSearch] = useState('');
     const [providerFilter, setProviderFilter] = useState('all');
     const [confirmDelete, setConfirmDelete] = useState(null); // { userId, label, kind }
-    const [docsFor, setDocsFor] = useState(null); // provider being reviewed
+    const [docsId, setDocsId] = useState(null);
+    const docsFor = providers.find((p) => p._id === docsId) || null;
+    const setDocsFor = (p) => setDocsId(p ? p._id : null);    
     const [busy, setBusy] = useState(false);
 
     const load = useCallback(async () => {
@@ -125,6 +127,56 @@ export default function AdminDashboard() {
         } finally {
             setBusy(false);
         }
+    };
+
+    const sendFiles = async (method, url, formData, okMsg, data) => {
+    setBusy(true);
+    try {
+        if (method === 'delete') {
+            await api.delete(url, { data });
+        } else {
+            await api[method](url, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+        }
+        toast.success(okMsg);
+        await load();
+    } catch (err) {
+        toast.error(err.response?.data?.message || 'Something went wrong');
+    } finally {
+        setBusy(false);
+    }
+    };
+
+    const addCerts = (e) => {
+        const files = [...e.target.files];
+        e.target.value = '';
+        if (!files.length) return;
+        const fd = new FormData();
+        files.forEach((f) => fd.append('certifications', f));
+        sendFiles('post', `/admin/providers/${docsFor._id}/certifications`, fd, 'Certifications added');
+    };
+
+    const replaceCert = (oldPath, e) => {
+        const file = e.target.files[0];
+        e.target.value = '';
+        if (!file) return;
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('old', oldPath);
+        sendFiles('put', `/admin/providers/${docsFor._id}/certifications`, fd, 'Certification replaced');
+    };
+
+    const removeCert = (certPath) => {
+        if (!window.confirm('Remove this certification?')) return;
+        sendFiles('delete', `/admin/providers/${docsFor._id}/certifications`, null, 'Certification removed', { path: certPath });
+    };
+
+    const replacePicture = (e) => {
+        const file = e.target.files[0];
+        e.target.value = '';
+        if (!file) return;
+        const fd = new FormData();
+        fd.append('file', file);
+        sendFiles('put', `/admin/providers/${docsFor._id}/profile-picture`, fd, 'Profile picture updated');
     };
 
     const q = search.trim().toLowerCase();
@@ -425,6 +477,7 @@ export default function AdminDashboard() {
             </main>
 
             {/* Document review modal */}
+           {/* Document review modal */}
             {docsFor && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setDocsFor(null)}>
                     <div
@@ -433,11 +486,17 @@ export default function AdminDashboard() {
                     >
                         <div className="flex items-start justify-between gap-4">
                             <div className="flex items-center gap-3">
-                                <FileThumb
-                                    path={docsFor.profilePicture}
-                                    alt={docsFor.companyName}
-                                    className="w-14 h-14 rounded-full object-cover"
-                                />
+                                <div className="flex flex-col items-center gap-1">
+                                    <FileThumb
+                                        path={docsFor.profilePicture}
+                                        alt={docsFor.companyName}
+                                        className="w-14 h-14 rounded-full object-cover"
+                                    />
+                                    <label className="text-[10px] text-purple-700 cursor-pointer underline">
+                                        Change
+                                        <input type="file" accept="image/png,image/jpeg" className="hidden" disabled={busy} onChange={replacePicture} />
+                                    </label>
+                                </div>
                                 <div>
                                     <h3 className="font-bold text-lg">{docsFor.companyName}</h3>
                                     <p className="text-xs text-gray-500">
@@ -453,16 +512,33 @@ export default function AdminDashboard() {
                             Services: {parseServices(docsFor.services).join(', ') || '—'}
                         </p>
 
-                        <h4 className="font-semibold mt-5 mb-2 text-sm">Certifications</h4>
+                        <div className="flex items-center justify-between mt-5 mb-2">
+                            <h4 className="font-semibold text-sm">Certifications</h4>
+                            <label className={`text-xs px-3 py-1 rounded bg-purple-700 text-white cursor-pointer hover:bg-purple-800 ${busy ? 'opacity-50 pointer-events-none' : ''}`}>
+                                + Add files
+                                <input type="file" multiple accept="application/pdf,image/png,image/jpeg" className="hidden" disabled={busy} onChange={addCerts} />
+                            </label>
+                        </div>
+
                         {docsFor.certifications?.length ? (
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {docsFor.certifications.map((cert, i) => (
-                                    <FileThumb
-                                        key={i}
-                                        path={cert}
-                                        alt={`Certification ${i + 1}`}
-                                        className="object-cover w-full h-60 border rounded"
-                                    />
+                                {docsFor.certifications.map((cert) => (
+                                    <div key={cert} className="border rounded p-2">
+                                        <FileThumb path={cert} alt="Certification" className="object-cover w-full h-60 rounded" />
+                                        <div className="flex gap-2 mt-2">
+                                            <label className={`flex-1 text-center text-xs px-2 py-1 rounded border border-purple-700 text-purple-700 cursor-pointer hover:bg-purple-700 hover:text-white ${busy ? 'opacity-50 pointer-events-none' : ''}`}>
+                                                Replace
+                                                <input type="file" accept="application/pdf,image/png,image/jpeg" className="hidden" disabled={busy} onChange={(e) => replaceCert(cert, e)} />
+                                            </label>
+                                            <button
+                                                disabled={busy}
+                                                onClick={() => removeCert(cert)}
+                                                className="flex-1 text-xs px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                                            >
+                                                Remove
+                                            </button>
+                                        </div>
+                                    </div>
                                 ))}
                             </div>
                         ) : (
@@ -470,7 +546,7 @@ export default function AdminDashboard() {
                         )}
 
                         <div className="flex justify-end gap-3 mt-6">
-                            <button onClick={() => setDocsFor(null)} className="px-4 py-2 text-sm rounded bg-gray-200 hover:bg-gray-300">
+                            <button className="px-4 py-2 text-sm rounded bg-gray-200 hover:bg-gray-300">
                                 Close
                             </button>
                             <button
