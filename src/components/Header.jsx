@@ -27,10 +27,10 @@ const Header = () => {
                         <UserCircleIcon className="h-5 w-5 text-purple-500" />
                         <button className="text-sm text-purple-500 font-semibold"><Link to='/sign-in'>Sign In</Link></button>
                     </div>
-                    <div className="border px-4 py-2 rounded bg-purple-500 flex items-center justify-center gap-2 w-full sm:w-auto">
+                    <Link to="/help" className="border px-4 py-2 rounded bg-purple-500 flex items-center justify-center gap-2 w-full sm:w-auto">
                         <QuestionMarkCircleIcon className="h-5 w-5 text-white" />
-                        <button className="text-sm text-white font-semibold">Help</button>
-                    </div>
+                        <span className="text-sm text-white font-semibold">Help</span>
+                    </Link>
                 </div>
             </header>
         </div>

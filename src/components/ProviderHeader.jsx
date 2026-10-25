@@ -12,6 +12,7 @@ const ProviderHeader = () => {
         { to: '/messages', label: 'Messages' },
         { to: '/history', label: 'History' },
         { to: '/settings', label: 'Settings' },
+        { to: '/help', label: 'Help' },
     ];
 
     return (

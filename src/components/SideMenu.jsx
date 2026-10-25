@@ -7,7 +7,7 @@ import house from '../assets/Icons/house-door-fill.svg';
 
 import { useContext } from 'react';
 import AuthContext from '../context/AuthContext';
-import { XMarkIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
 
 const SideMenu = ({ isOpen = false, onClose = () => {} }) => {
     const { logout } = useContext(AuthContext);
@@ -43,6 +43,11 @@ const SideMenu = ({ isOpen = false, onClose = () => {} }) => {
             path: '/settings',
             icon: settings,
         },
+        {
+            name: 'Help',
+            path: '/help',
+            Icon: QuestionMarkCircleIcon,
+        },
     ];
 
     const menuContent = (
@@ -70,11 +75,15 @@ const SideMenu = ({ isOpen = false, onClose = () => {} }) => {
                         onClick={onClose}
                         className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-purple-600 hover:text-white transition"
                     >
-                        <img
-                            src={item.icon}
-                            alt={item.name}
-                            className="w-5 h-5"
-                        />
+                        {item.Icon ? (
+                            <item.Icon className="w-5 h-5" />
+                        ) : (
+                            <img
+                                src={item.icon}
+                                alt={item.name}
+                                className="w-5 h-5"
+                            />
+                        )}
 
                         <span>{item.name}</span>
                     </Link>
