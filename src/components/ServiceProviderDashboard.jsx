@@ -1,282 +1,482 @@
-
-import ProviderSidemenu from './ProviderSidemenu';
-import NotificationBell from './NotificationBell';
-import { Bars3Icon } from '@heroicons/react/24/outline';
-import profilePicture from '../assets/Merchants/Merchant-1.jpg';
-import { useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import { useContext, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+    Bell,
+    Briefcase,
+    CalendarDays,
+    CalendarX,
+    CheckCircle2,
+    ChevronLeft,
+    ChevronRight,
+    ClipboardList,
+    Clock,
+    DollarSign,
+    Eye,
+    MapPin,
+} from 'lucide-react';
+import ProviderSidemenu from './ProviderSidemenu';
+import ProviderHeader from './ProviderHeader';
 import AuthContext from '../context/AuthContext';
 import api from '../utils/api';
-import Schedule from './Schedule';
-import { toast } from 'react-toastify';
+
+const focusRing =
+    'focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2';
+
+const STATUS_BADGE = {
+    accepted: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
+    declined: 'bg-red-50 text-red-700 ring-red-600/20',
+    completed: 'bg-blue-50 text-blue-700 ring-blue-600/20',
+    pending: 'bg-amber-50 text-amber-700 ring-amber-600/20',
+};
+
+const formatDate = (value) => {
+    if (!value) return '–';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value);
+    const utc = /^\d{4}-\d{2}-\d{2}$/.test(String(value)) ? { timeZone: 'UTC' } : {};
+    return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', ...utc }).format(d);
+};
+
+/* -------------------------------------------------------------------------- */
+/* Small components                                                            */
+/* -------------------------------------------------------------------------- */
+
+const StatusBadge = ({ status }) => (
+    <span
+        className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold capitalize ring-1 ring-inset ${
+            STATUS_BADGE[status] || STATUS_BADGE.pending
+        }`}
+    >
+        {status || 'pending'}
+    </span>
+);
+
+const StatCard = ({ icon: Icon, label, value, tone }) => (
+    <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
+        <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-medium text-slate-500">{label}</p>
+            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${tone}`}>
+                <Icon className="h-5 w-5" aria-hidden="true" />
+            </span>
+        </div>
+        <p className="mt-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{value}</p>
+    </div>
+);
+
+const Panel = ({ title, action, children, className = '' }) => (
+    <section className={`rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:p-6 ${className}`}>
+        <div className="flex items-center justify-between gap-3">
+            <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+            {action}
+        </div>
+        <div className="mt-4">{children}</div>
+    </section>
+);
+
+const EmptyState = ({ icon: Icon, text }) => (
+    <div className="flex flex-col items-center rounded-xl border border-dashed border-slate-200 px-4 py-10 text-center">
+        <Icon className="h-8 w-8 text-slate-300" aria-hidden="true" />
+        <p className="mt-2 text-sm text-slate-500">{text}</p>
+    </div>
+);
+
+const ViewButton = ({ onClick, className = '' }) => (
+    <button
+        type="button"
+        onClick={onClick}
+        className={`inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-blue-700 ${focusRing} ${className}`}
+    >
+        <Eye className="h-4 w-4" aria-hidden="true" />
+        View booking
+    </button>
+);
+
+/* -------------------------------------------------------------------------- */
+/* Calendar                                                                    */
+/* -------------------------------------------------------------------------- */
+
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+const pad = (n) => String(n).padStart(2, '0');
+const keyOf = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`;
+
+// Turns "2026-10-24" or a full ISO string into a local "YYYY-MM-DD" key
+const toKey = (value) => {
+    if (!value) return null;
+    if (/^\d{4}-\d{2}-\d{2}/.test(String(value))) return String(value).slice(0, 10);
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : keyOf(d.getFullYear(), d.getMonth(), d.getDate());
+};
+
+const DOT = {
+    accepted: 'bg-emerald-500',
+    completed: 'bg-blue-500',
+    pending: 'bg-amber-500',
+    declined: 'bg-red-400',
+};
+
+const Schedule = ({ bookings = [] }) => {
+    const today = new Date();
+    const todayKey = keyOf(today.getFullYear(), today.getMonth(), today.getDate());
+    const [cursor, setCursor] = useState({ year: today.getFullYear(), month: today.getMonth() });
+    const [selected, setSelected] = useState(todayKey);
+
+    const byDay = useMemo(() => {
+        const map = {};
+        bookings.forEach((b) => {
+            const k = toKey(b.date);
+            if (k) (map[k] ||= []).push(b);
+        });
+        return map;
+    }, [bookings]);
+
+    const { year, month } = cursor;
+    const monthLabel = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric' }).format(
+        new Date(year, month, 1)
+    );
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const offset = (new Date(year, month, 1).getDay() + 6) % 7; // Monday first
+    const cells = [...Array(offset).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
+
+    const shift = (delta) => {
+        const d = new Date(year, month + delta, 1);
+        setCursor({ year: d.getFullYear(), month: d.getMonth() });
+    };
+    const goToday = () => {
+        setCursor({ year: today.getFullYear(), month: today.getMonth() });
+        setSelected(todayKey);
+    };
+
+    const dayBookings = byDay[selected] || [];
+    const selectedLabel = selected
+        ? new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }).format(
+              new Date(`${selected}T00:00:00`)
+          )
+        : '';
+
+    return (
+        <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-slate-900 sm:text-base">{monthLabel}</h3>
+                <div className="flex items-center gap-1">
+                    <button
+                        type="button"
+                        onClick={goToday}
+                        className={`h-9 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 ${focusRing}`}
+                    >
+                        Today
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => shift(-1)}
+                        aria-label="Previous month"
+                        className={`flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 ${focusRing}`}
+                    >
+                        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => shift(1)}
+                        aria-label="Next month"
+                        className={`flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 ${focusRing}`}
+                    >
+                        <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                </div>
+            </div>
+
+            <div>
+                <div className="grid grid-cols-7 gap-1 text-center">
+                    {WEEKDAYS.map((d) => (
+                        <span key={d} className="pb-1 text-[11px] font-medium text-slate-500">
+                            <span className="sm:hidden">{d[0]}</span>
+                            <span className="hidden sm:inline">{d}</span>
+                        </span>
+                    ))}
+                </div>
+                <div className="grid grid-cols-7 gap-1">
+                    {cells.map((day, i) => {
+                        if (!day) return <span key={`e${i}`} />;
+                        const k = keyOf(year, month, day);
+                        const items = byDay[k] || [];
+                        const isSelected = k === selected;
+                        const isToday = k === todayKey;
+                        return (
+                            <button
+                                key={k}
+                                type="button"
+                                onClick={() => setSelected(k)}
+                                aria-pressed={isSelected}
+                                aria-label={`${day} ${monthLabel}${items.length ? `, ${items.length} booking${items.length > 1 ? 's' : ''}` : ''}`}
+                                className={`relative flex aspect-square min-h-10 flex-col items-center justify-center rounded-xl text-sm font-medium transition-colors ${focusRing} ${
+                                    isSelected
+                                        ? 'bg-blue-600 text-white shadow-sm'
+                                        : isToday
+                                          ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                                          : 'text-slate-700 hover:bg-slate-100'
+                                }`}
+                            >
+                                {day}
+                                {items.length > 0 && (
+                                    <span className="absolute bottom-1.5 flex gap-0.5">
+                                        {items.slice(0, 3).map((b, j) => (
+                                            <span
+                                                key={j}
+                                                className={`h-1.5 w-1.5 rounded-full ${
+                                                    isSelected ? 'bg-white' : DOT[b.status] || DOT.pending
+                                                }`}
+                                            />
+                                        ))}
+                                    </span>
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            <div className="border-t border-slate-100 pt-4">
+                <p className="text-sm font-semibold text-slate-900">{selectedLabel}</p>
+                {dayBookings.length === 0 ? (
+                    <p className="mt-2 flex items-center gap-2 text-sm text-slate-500">
+                        <CalendarDays className="h-4 w-4 text-slate-400" aria-hidden="true" />
+                        Nothing booked this day.
+                    </p>
+                ) : (
+                    <ul className="mt-3 space-y-2">
+                        {dayBookings.map((b, i) => (
+                            <li key={b._id || i} className="rounded-xl bg-slate-50 p-3">
+                                <div className="flex items-center justify-between gap-2">
+                                    <p className="min-w-0 truncate text-sm font-semibold capitalize text-slate-900">
+                                        {b.service || 'Service booking'}
+                                    </p>
+                                    <span className="flex shrink-0 items-center gap-1.5 text-xs capitalize text-slate-500">
+                                        <span className={`h-2 w-2 rounded-full ${DOT[b.status] || DOT.pending}`} />
+                                        {b.status}
+                                    </span>
+                                </div>
+                                {b.time && (
+                                    <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
+                                        <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                                        {b.time}
+                                    </p>
+                                )}
+                                {b.location && (
+                                    <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
+                                        <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                                        <span className="truncate">{b.location}</span>
+                                    </p>
+                                )}
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
+        </div>
+    );
+};
+
+/* -------------------------------------------------------------------------- */
+/* Page                                                                        */
+/* -------------------------------------------------------------------------- */
 
 const ServiceProviderDashboard = () => {
-    const { fetchCurrentUser } = useContext(AuthContext)
-    const [user, setUser] = useState()
-    const [activeJobs, setActiveJobs] = useState([])
-    const [bookings, setBookings] = useState([])
-    const navigate = useNavigate()
-    const [customers, setCustomers] = useState([])
-    const [isMenuOpen, setIsMenuOpen] = useState(false)
+    const { fetchCurrentUser } = useContext(AuthContext);
+    const [user, setUser] = useState();
+    const [bookings, setBookings] = useState([]);
+    const [customers, setCustomers] = useState([]);
+    const navigate = useNavigate();
 
     useEffect(() => {
         const fetchUser = async () => {
             try {
-                const res = await fetchCurrentUser()
-                setUser(res)
+                setUser(await fetchCurrentUser());
             } catch (error) {
-                console.error('Error fetching user', error.stack)
+                console.error('Error fetching user', error.stack);
             }
-        }
-        fetchUser()
-    }, [])
+        };
+        fetchUser();
+    }, [fetchCurrentUser]);
 
-    const getBookings = useCallback(async () => {
+    useEffect(() => {
         if (!user) return;
-        try {
-            const res = await api.post('/fetch-provider-bookings', { user });
-            setBookings(res.data.bookings);
-            setCustomers(res.data.customers);
-        } catch (error) {
-            console.error('There was an error fetching bookings', error);
-        }
+        const getBookings = async () => {
+            try {
+                const res = await api.post('/fetch-provider-bookings', { user });
+                setBookings(res.data.bookings || []);
+                setCustomers(res.data.customers || []);
+            } catch (error) {
+                console.error('There was an error fetching bookings', error);
+            }
+        };
+        getBookings();
     }, [user]);
 
-    useEffect(() => { getBookings(); }, [getBookings]);
-
-    // Refetch whenever a live notification arrives
-    useEffect(() => {
-        window.addEventListener('notification:new', getBookings);
-        return () => window.removeEventListener('notification:new', getBookings);
-    }, [getBookings]);
-
-    useEffect(() => {
-        const activeRequests = bookings.filter(booking => booking.status === 'accepted');
-        setActiveJobs(activeRequests);
+    const { activeJobs, completedJobs, newRequests, recentRequests } = useMemo(() => {
+        const pending = bookings
+            .filter((b) => b.status === 'pending')
+            .sort((a, b) => new Date(b.date) - new Date(a.date));
+        return {
+            activeJobs: bookings.filter((b) => b.status === 'accepted'),
+            completedJobs: bookings.filter((b) => b.status === 'completed'),
+            newRequests: pending,
+            recentRequests: pending.slice(0, 3),
+        };
     }, [bookings]);
 
-    const viewBooking = (booking) => {
-        if (booking) {
-            navigate('/view-booking', { state: { booking } })
-        }
-    }
-    const [updatingId, setUpdatingId] = useState(null);
-
-    const updateStatus = async (booking, status) => {
-        const labels = { completed: 'completed', incomplete: 'incomplete' };
-        if (!window.confirm(`Mark this job as ${labels[status] || status}?`)) return;
-
-        setUpdatingId(booking._id);
-        try {
-            await api.patch('/fetch-provider-bookings', { status, bookingId: booking._id });
-            toast.success(`Job marked as ${labels[status] || status}`);
-            await getBookings();
-        } catch (error) {
-            toast.error(error.response?.data?.message || 'Could not update the job');
-        } finally {
-            setUpdatingId(null);
-        }
-    };
-
-    // Notifications for the bell: one entry per new (pending) request
-    const notifications = useMemo(() => {
-        return bookings
-            .filter((booking) => booking.status === 'pending')
-            .map((booking) => {
-                const customer = (customers || []).find(
-                    (c) => c.id === booking.customerId
-                );
-                const customerName = customer
-                    ? `${customer.firstName} ${customer.lastName}`
-                    : 'a customer';
-
-                return {
-                    id: `${booking._id}-${booking.status}`,
-                    type: 'info',
-                    message: `New booking request from ${customerName} for ${booking.service}.`,
-                    time: booking.createdAt || booking.updatedAt,
-                    booking,
-                };
-            })
-            .sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0))
-            .slice(0, 10);
-    }, [bookings, customers]);
-
-    const sortedBookings = [...bookings].sort((a, b) => new Date(b.date) - new Date(a.date));
-    const completedJobs = [...bookings].filter(booking => booking.status === 'completed')
-    const newRequests = [...bookings].filter(booking => booking.status === 'pending')
-
     const customerName = (booking) => {
-        const c = customers.find(c => String(c._id) === String(booking.user));
-        return c ? `${c.firstName} ${c.lastName}` : 'Customer';
+        const c = customers.find((customer) => customer.id === booking.customerId);
+        return c ? `${c.firstName} ${c.lastName}` : 'Unknown client';
     };
+
+    const viewBooking = (booking) => booking && navigate('/view-booking', { state: { booking } });
 
     return (
-        <div className='flex bg-slate-100 min-h-screen'>
-            <ProviderSidemenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
-            <main className='flex-1 min-w-0 p-4'>
-                <section className='flex justify-between p-4 items-center'>
-                    <div className='flex items-center gap-3'>
-                        <button
-                            className="lg:hidden"
-                            onClick={() => setIsMenuOpen(true)}
-                            aria-label="Open menu"
-                        >
-                            <Bars3Icon className="size-7 text-gray-700" />
-                        </button>
-                        <div className='flex flex-col mr-4 sm:mr-8 lg:mr-20'>
-                            <h1 className='font-bold'>
-                                Welcome back {user ? user.firstName : "Guest"}!
-                            </h1>
-                            <p className='text-xs font-light'>
-                                Let's see who needs your services today!
-                            </p>
-                        </div>
-                    </div>
-                    <div className='flex justify-end gap-4'>
-                        <NotificationBell
-                            notifications={notifications}
-                            onNotificationClick={(notification) => viewBooking(notification.booking)}
-                        />
-                    </div>
-                </section>
+        <div className="flex min-h-screen bg-[#f5f7fb] font-[family-name:Inter,ui-sans-serif,system-ui,sans-serif] text-slate-900">
+            <div className="hidden lg:block">
+                <ProviderSidemenu className="min-h-screen w-64 bg-gray-800 text-white" />
+            </div>
 
-                <section className='grid grid-cols-2 lg:grid-cols-4 gap-4 p-4 '>
-                    <div className='border rounded p-4 bg-white'>
-                        <div className='flex items-center justify-between'>
-                            <h1 className='text-sm sm:text-xl font-medium'>Active Jobs</h1>
-                            <svg className='text-purple-700 flex-shrink-0' xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                <path d="M6.5 1A1.5 1.5 0 0 0 5 2.5V3H1.5A1.5 1.5 0 0 0 0 4.5v1.384l7.614 2.03a1.5 1.5 0 0 0 .772 0L16 5.884V4.5A1.5 1.5 0 0 0 14.5 3H11v-.5A1.5 1.5 0 0 0 9.5 1zm0 1h3a.5.5 0 0 1 .5.5V3H6v-.5a.5.5 0 0 1 .5-.5" />
-                                <path d="M0 12.5A1.5 1.5 0 0 0 1.5 14h13a1.5 1.5 0 0 0 1.5-1.5V6.85L8.129 8.947a.5.5 0 0 1-.258 0L0 6.85z" />
-                            </svg>
-                        </div>
-                        <p className='text-2xl font-extrabold'>{activeJobs.length}</p>
-                    </div>
-                    <div className='border rounded p-4 bg-white'>
-                        <div className='flex items-center justify-between'>
-                            <h1 className='text-sm sm:text-xl font-medium'>New Requests</h1>
-                            <svg className='text-purple-700 flex-shrink-0' xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                <path fillRule="evenodd" d="M10 1.5a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5zm-5 0A1.5 1.5 0 0 1 6.5 0h3A1.5 1.5 0 0 1 11 1.5v1A1.5 1.5 0 0 1 9.5 4h-3A1.5 1.5 0 0 1 5 2.5zm-2 0h1v1A2.5 2.5 0 0 0 6.5 5h3A2.5 2.5 0 0 0 12 2.5v-1h1a2 2 0 0 1 2 2V14a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V3.5a2 2 0 0 1 2-2" />
-                            </svg>
-                        </div>
-                        <p className='text-2xl font-extrabold'>{newRequests.length}</p>
-                    </div>
-                    <div className='border rounded p-4 bg-white'>
-                        <div className='flex items-center justify-between'>
-                            <h1 className='text-sm sm:text-xl font-medium'>Completed</h1>
-                            <svg className='text-purple-700 flex-shrink-0' xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0m-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z" />
-                            </svg>
-                        </div>
-                        <p className='text-2xl font-extrabold'>{completedJobs.length}</p>
-                    </div>
-                    <div className='border rounded p-4 bg-white'>
-                        <div className='flex items-center justify-between'>
-                            <h1 className='text-sm sm:text-xl font-medium'>Earnings</h1>
-                            <svg className='text-purple-700 flex-shrink-0' xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                <path d="M4 10.781c.148 1.667 1.513 2.85 3.591 3.003V15h1.043v-1.216c2.27-.179 3.678-1.438 3.678-3.3 0-1.59-.947-2.51-2.956-3.028l-.722-.187V3.467c1.122.11 1.879.714 2.07 1.616h1.47c-.166-1.6-1.54-2.748-3.54-2.875V1H7.591v1.233c-1.939.23-3.27 1.472-3.27 3.156 0 1.454.966 2.483 2.661 2.917l.61.162v4.031c-1.149-.17-1.94-.8-2.131-1.718zm3.391-3.836c-1.043-.263-1.6-.825-1.6-1.616 0-.944.704-1.641 1.8-1.828v3.495l-.2-.05zm1.591 1.872c1.287.323 1.852.859 1.852 1.769 0 1.097-.826 1.828-2.2 1.939V8.73z" />
-                            </svg>
-                        </div>
-                        <p className='text-2xl font-extrabold'>$2,854</p>
-                    </div>
-                </section>
-
-                <section className='bg-white p-4 m-4 rounded overflow-x-auto'>
-                    <h1 className='font-bold mb-4'> Recent Requests</h1>
-                    <table className='w-full rounded min-w-[640px]'>
-                        <thead className='bg-gray-100'>
-                            <tr>
-                                <th className='p-2 border-r text-xs text-left text-gray-500'>Client</th>
-                                <th className='p-2 border-r text-xs text-left text-gray-500'>Service</th>
-                                <th className='p-2 border-r text-xs text-left text-gray-500'>Location</th>
-                                <th className='p-2 border-r text-xs text-left text-gray-500'>Date</th>
-                                <th className='p-2 border-r text-xs text-left text-gray-500'>Status</th>
-                                <th className='p-2 text-xs text-left text-gray-500'>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {sortedBookings.some(booking => booking.status === 'pending') ? sortedBookings.filter((booking) => booking.status === 'pending').slice(0, 3).map((booking) => (
-                                <tr key={booking._id}>
-                                    <td className='p-2 text-semibold text-xs'>
-                                        {customerName(booking)}
-                                    </td>
-                                    <td className='p-2 text-semibold text-xs'>{booking.service}</td>
-                                    <td className='p-2 text-semibold text-xs'>{booking.location}</td>
-                                    <td className='p-2 text-semibold text-xs'>{booking.date}</td>
-                                    <td className='p-2 text-semibold text-xs'>
-                                        {booking.status === 'accepted' ? (
-                                            <div className="text-xs text-center rounded-full bg-green-200 text-green-700 inline-block px-4 py-1">
-                                                {booking.status}
-                                            </div>
-                                        ) : booking.status === 'declined' ? (
-                                            <div className="text-xs text-center rounded-full bg-red-200 text-red-700 inline-block px-4 py-1">
-                                                {booking.status}
-                                            </div>
-                                        ) : (
-                                            <div className="text-xs text-center rounded-full bg-yellow-200 text-yellow-700 inline-block px-4 py-1">
-                                                {booking.status}
-                                            </div>
-                                        )}
-                                    </td>
-                                    <td className='p-2 text-xs'>
-                                        <button onClick={() => viewBooking(booking)} className='mx-auto text-center flex justify-center px-2'>
-                                            <p className='text-xs p-2 m-2 font-medium text-center px-1 py-1 bg-purple-800 rounded text-white'>
-                                                View Booking
-                                            </p>
-                                        </button>
-                                    </td>
-                                </tr>
-                            )) : (
-                                <tr>
-                                    <td colSpan="6" className='text-center text-2xl sm:text-5xl font-bold text-gray-200'>No New Bookings</td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </section>
-
-                <section className='grid grid-cols-1 lg:grid-cols-2 gap-4 p-4'>
-                    <div className='bg-white rounded p-4'>
-                    <h1 className='font-medium'>Active Jobs</h1>
-                    <hr />
-                    {activeJobs.length === 0 && (
-                        <p className='text-sm text-gray-400 py-6 text-center'>No active jobs</p>
-                    )}
-                    {activeJobs.map((job) => (
-                        <div key={job._id} className='p-4 border-b last:border-b-0'>
-                            <div className='flex items-center justify-between gap-3'>
-                                <div>
-                                    <h1 className='font-medium'><span className='text-black font-semibold'>Service: </span>{job.service}</h1>
-                                    <p className='text-xs'>{job.location}</p>
-                                    <p className='text-xs text-gray-500'>{job.date} at {job.time}</p>
-                                </div>
-                                <div className='bg-fuchsia-400 rounded-full p-2'>
-                                    <p className='text-xs font-medium text-fuchsia-900'>{job.status}</p>
-                                </div>
-                            </div>
-                            <div className='flex gap-2 mt-3'>
-                                <button
-                                    disabled={updatingId === job._id}
-                                    onClick={() => updateStatus(job, 'completed')}
-                                    className='text-xs px-3 py-1 rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50'
-                                >
-                                    Mark completed
-                                </button>
-                                <button
-                                    disabled={updatingId === job._id}
-                                    onClick={() => updateStatus(job, 'incomplete')}
-                                    className='text-xs px-3 py-1 rounded bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50'
-                                >
-                                    Mark incomplete
-                                </button>
-                            </div>
-                        </div>
-                    ))}
+            <div className="min-w-0 flex-1">
+                {/* Below lg the sidemenu is hidden, so the header carries navigation */}
+                <div className="lg:hidden">
+                    <ProviderHeader />
                 </div>
-                </section>
-            </main>
-        </div>
-    )
-}
 
-export default ServiceProviderDashboard
+                <main className="mx-auto w-full max-w-7xl px-4 py-6 md:px-6 md:py-8">
+                    <header className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                            <h1 className="truncate text-2xl font-bold tracking-tight md:text-3xl">
+                                Welcome back, {user ? user.firstName : 'Guest'}
+                            </h1>
+                            <p className="mt-1 text-sm text-slate-500">See who needs your services today.</p>
+                        </div>
+                        <button
+                            type="button"
+                            aria-label={`Notifications, ${newRequests.length} new requests`}
+                            onClick={() => newRequests[0] && viewBooking(newRequests[0])}
+                            className={`relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 ${focusRing}`}
+                        >
+                            <Bell className="h-5 w-5" aria-hidden="true" />
+                            {newRequests.length > 0 && (
+                                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[11px] font-bold text-white">
+                                    {newRequests.length}
+                                </span>
+                            )}
+                        </button>
+                    </header>
+
+                    {/* Stats */}
+                    <section aria-label="Overview" className="mt-6 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+                        <StatCard icon={Briefcase} label="Active jobs" value={activeJobs.length} tone="bg-violet-50 text-violet-600" />
+                        <StatCard icon={ClipboardList} label="New requests" value={newRequests.length} tone="bg-amber-50 text-amber-600" />
+                        <StatCard icon={CheckCircle2} label="Completed" value={completedJobs.length} tone="bg-emerald-50 text-emerald-600" />
+                        <StatCard icon={DollarSign} label="Earnings" value="$2,854" tone="bg-blue-50 text-blue-600" />
+                    </section>
+
+                    {/* Recent requests */}
+                    <Panel title="Recent requests" className="mt-6">
+                        {recentRequests.length === 0 ? (
+                            <EmptyState icon={CalendarX} text="No new bookings yet. New requests will appear here." />
+                        ) : (
+                            <>
+                                {/* Table from md up */}
+                                <div className="hidden overflow-x-auto md:block">
+                                    <table className="w-full min-w-[640px] text-left text-sm">
+                                        <thead>
+                                            <tr className="border-b border-slate-100 text-xs font-medium text-slate-500">
+                                                <th className="pb-3 pr-4 font-medium">Client</th>
+                                                <th className="pb-3 pr-4 font-medium">Service</th>
+                                                <th className="pb-3 pr-4 font-medium">Location</th>
+                                                <th className="pb-3 pr-4 font-medium">Date</th>
+                                                <th className="pb-3 pr-4 font-medium">Status</th>
+                                                <th className="pb-3 text-right font-medium">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {recentRequests.map((b, i) => (
+                                                <tr key={b._id || i}>
+                                                    <td className="py-3 pr-4 font-medium text-slate-900">{customerName(b)}</td>
+                                                    <td className="max-w-[160px] truncate py-3 pr-4 capitalize text-slate-700" title={b.service}>
+                                                        {b.service}
+                                                    </td>
+                                                    <td className="max-w-[200px] truncate py-3 pr-4 text-slate-700" title={b.location}>
+                                                        {b.location}
+                                                    </td>
+                                                    <td className="whitespace-nowrap py-3 pr-4 text-slate-700">{formatDate(b.date)}</td>
+                                                    <td className="py-3 pr-4">
+                                                        <StatusBadge status={b.status} />
+                                                    </td>
+                                                    <td className="py-3 text-right">
+                                                        <ViewButton onClick={() => viewBooking(b)} />
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Cards on mobile */}
+                                <ul className="space-y-3 md:hidden">
+                                    {recentRequests.map((b, i) => (
+                                        <li key={b._id || i} className="rounded-xl border border-slate-100 p-4">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <p className="truncate font-semibold text-slate-900">{customerName(b)}</p>
+                                                    <p className="truncate text-sm capitalize text-slate-600">{b.service}</p>
+                                                </div>
+                                                <StatusBadge status={b.status} />
+                                            </div>
+                                            <p className="mt-3 flex items-center gap-1.5 text-sm text-slate-500">
+                                                <Clock className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+                                                {formatDate(b.date)}
+                                            </p>
+                                            <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-500">
+                                                <MapPin className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+                                                <span className="truncate">{b.location}</span>
+                                            </p>
+                                            <ViewButton onClick={() => viewBooking(b)} className="mt-4 w-full" />
+                                        </li>
+                                    ))}
+                                </ul>
+                            </>
+                        )}
+                    </Panel>
+
+                    {/* Active jobs + schedule */}
+                    <div className="mt-6 grid gap-6 lg:grid-cols-2">
+                        <Panel title="Active jobs">
+                            {activeJobs.length === 0 ? (
+                                <EmptyState icon={Briefcase} text="No active jobs right now." />
+                            ) : (
+                                <ul className="space-y-3">
+                                    {activeJobs.map((job, i) => (
+                                        <li
+                                            key={job._id || i}
+                                            className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 sm:p-4"
+                                        >
+                                            <div className="min-w-0">
+                                                <p className="truncate font-semibold capitalize text-slate-900">{job.service}</p>
+                                                <p className="mt-0.5 flex items-center gap-1.5 text-sm text-slate-500">
+                                                    <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                                                    <span className="truncate">{job.location}</span>
+                                                </p>
+                                            </div>
+                                            <StatusBadge status={job.status} />
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </Panel>
+
+                        <Panel title="Schedule">
+                            <Schedule bookings={bookings.filter((b) => b.status !== 'declined')} />
+                        </Panel>
+                    </div>
+                </main>
+            </div>
+        </div>
+    );
+};
+
+export default ServiceProviderDashboard;

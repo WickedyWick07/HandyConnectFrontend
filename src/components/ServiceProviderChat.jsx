@@ -89,12 +89,13 @@ function ServiceProviderChat() {
 
     console.log("customer info:", customer);
 
-   return (
-    <div className="flex flex-col h-screen">
-        <ProviderHeader />
+    return (
+        <div>
+            <div>
+                <ProviderHeader />
+            </div>
 
-        {user && customer && (
-            <div className="flex-1 min-h-0">
+            {user && customer && (
                 <ChatComponent
                     currentUserId={user._id}
                     currentUserType={user.role}
@@ -102,10 +103,9 @@ function ServiceProviderChat() {
                     receiverId={customer._id || fetchCustomerFromBooking._id}
                     chatId={chatId} // Pass the conversation ID
                 />
-            </div>
-        )}
-    </div>
-);
+            )}
+        </div>
+    );
 }
 
 export default ServiceProviderChat;

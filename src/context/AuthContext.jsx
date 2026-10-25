@@ -1,4 +1,6 @@
-import { createContext, useState, useEffect } from 'react';
+import { createContext, useState, useEffect, useCallback } from 'react';
+import PropTypes from 'prop-types';
+
 import api from '../utils/api';
 const AuthContext = createContext();
 
@@ -111,7 +113,7 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const fetchCurrentUser = async () => {
+    const fetchCurrentUser = useCallback(async () => {
         try {
             const accessToken = localStorage.getItem('access_token');
             
@@ -131,7 +133,7 @@ export const AuthProvider = ({ children }) => {
             window.location.href = '/sign-in'
             throw error;
         }
-    };    
+    }, []);
 
     const logout = () => {
         localStorage.clear();
@@ -154,6 +156,10 @@ export const AuthProvider = ({ children }) => {
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+AuthProvider.propTypes = {
+    children: PropTypes.node.isRequired,
 };
 
 export default AuthContext;

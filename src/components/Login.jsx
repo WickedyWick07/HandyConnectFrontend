@@ -1,409 +1,422 @@
-import  { useState, useContext } from 'react';
+import { useState, useContext } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import {
+    Mail,
+    Lock,
+    Eye,
+    EyeOff,
+    User,
+    MapPin,
+    Loader2,
+    CheckCircle2,
+} from 'lucide-react';
 import loginImg from '../assets/login-pic.jpg';
 import AuthContext from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import LoadingPage from './LoadingPage';
+
+const inputClass =
+    'block h-12 w-full min-w-0 rounded-lg border border-gray-300 bg-gray-50 pl-10 text-base text-gray-900 placeholder-gray-400 transition focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60';
+
+// Labelled input with a leading icon and an optional trailing element (e.g. eye toggle)
+const Field = ({ id, label, icon: Icon, trailing, className = '', ...inputProps }) => (
+    <div className={className}>
+        <label htmlFor={id} className="mb-1 block text-sm font-medium text-gray-700">
+            {label}
+        </label>
+        <div className="relative">
+            <Icon
+                className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400"
+                aria-hidden="true"
+            />
+            <input
+                id={id}
+                name={id}
+                className={`${inputClass} ${trailing ? 'pr-11' : 'pr-3'}`}
+                {...inputProps}
+            />
+            {trailing}
+        </div>
+    </div>
+);
+
+const PasswordToggle = ({ visible, onToggle }) => (
+    <button
+        type="button"
+        onClick={onToggle}
+        aria-label={visible ? 'Hide password' : 'Show password'}
+        aria-pressed={visible}
+        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-gray-500 transition hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+    >
+        {visible ? <EyeOff className="h-5 w-5" aria-hidden="true" /> : <Eye className="h-5 w-5" aria-hidden="true" />}
+    </button>
+);
+
+const SubmitButton = ({ loading, loadingText, children }) => (
+    <button
+        type="submit"
+        disabled={loading}
+        aria-busy={loading}
+        className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 text-base font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+    >
+        {loading ? (
+            <>
+                <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+                {loadingText}
+            </>
+        ) : (
+            children
+        )}
+    </button>
+);
 
 const Login = () => {
     const navigate = useNavigate();
-    const [openRegisterForm, setOpenRegisterForm] = useState(false);
-    const [openLoginForm, setOpenLoginForm] = useState(true);
-    const [serviceProvider, setServiceProvider] = useState(false);
     const { login, register } = useContext(AuthContext);
+
+    const [mode, setMode] = useState('login'); // 'login' | 'register'
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
-    const [role, setRole] = useState('');
+    const [serviceProvider, setServiceProvider] = useState(false);
     const [location, setLocation] = useState('');
-    const [error, setError] = useState('');
-    const [coordinates, setCoordinates] = useState({
-        longitude: null,
-        latitude: null
-    });
-    const [loading, setLoading] = useState(false)
+    const [coordinates, setCoordinates] = useState({ longitude: null, latitude: null });
     const [locationVerified, setLocationVerified] = useState(false);
-    const [locationLoading, setLocationLoading] = useState(false)
+    const [locationLoading, setLocationLoading] = useState(false);
     const [locationError, setLocationError] = useState('');
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
 
+    const isLogin = mode === 'login';
 
-    const toggleRegisterForm = () => {
-        setOpenRegisterForm((prevState) => !prevState);
-        setOpenLoginForm((prevState) => !prevState);
+    const switchMode = () => {
+        setMode(isLogin ? 'register' : 'login');
+        setError('');
+        setConfirmPassword('');
+        setShowPassword(false);
     };
 
-    async function getCoordinate(location) {
-                setLocationLoading(true);
+    async function getCoordinate(place) {
+        setLocationLoading(true);
         setLocationError('');
-        setLocationVerified(false); // Reset verification state
-        
-        if (!location || location.trim() === '') {
+        setLocationVerified(false);
+
+        if (!place || place.trim() === '') {
             setLocationError('Please enter a location');
             setLocationLoading(false);
             return null;
         }
-        
-        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location)}&format=json`;
-    
+
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(place)}&format=json`;
+
         try {
             const response = await fetch(url);
-            
             if (!response.ok) {
                 throw new Error(`Network response was not ok: ${response.status}`);
             }
-            
             const data = await response.json();
-    
+
             if (data.length > 0) {
-                const newCoords = {
-                    longitude: data[0].lon,
-                    latitude: data[0].lat,
-                };
+                const newCoords = { longitude: data[0].lon, latitude: data[0].lat };
                 setCoordinates(newCoords);
-                setLocationVerified(true); // Mark as verified
-                setLocationLoading(false);
+                setLocationVerified(true);
                 return newCoords;
-            } else {
-                setLocationError('No location found. Please try a different address or city.');
-                setLocationLoading(false);
-                return null;
             }
-        } catch (error) {
-            console.error('Error fetching coordinates:', error);
-            setLocationError('Failed to fetch coordinates: ' + error.message);
-            setLocationLoading(false);
+            setLocationError('No location found. Please try a different address or city.');
             return null;
-        }
-    };    const newUserFirstTimeLogIn = async () => {
-        try {
-            const response = await login(email, password)
-            if(response.status === 200 && response.data.user.role === 'service provider'){
-                navigate('/provider-signup')
-            } else {
-            navigate('/dashboard-customer')}
-            
-        } catch (error) {
-            console.log("An error occured during the login process", error)
-            
+        } catch (err) {
+            console.error('Error fetching coordinates:', err);
+            setLocationError('Failed to fetch coordinates: ' + err.message);
+            return null;
+        } finally {
+            setLocationLoading(false);
         }
     }
 
-    if(loading) return <LoadingPage /> 
-
     const handleLogin = async (e) => {
         e.preventDefault();
-        setLoading(true)
+        setError('');
+        setLoading(true);
         try {
             const response = await login(email, password);
-            console.log("server response", response.data)
-            const role = response.data.user.role;
-            if (role === 'admin') {
-                navigate('/admin');
-            } else if (role === 'service provider') {
-                navigate('/dashboard/service-provider');
-            } else {
-                navigate('/dashboard/customer');
+            if (response.status === 200) {
+                navigate(
+                    response.data.user.role === 'service provider'
+                        ? '/dashboard/service-provider'
+                        : '/dashboard/customer'
+                );
             }
-        } catch (error) {
-            console.error(error.message);
-            setError('Login failed: ' + error.message);
-        } finally{
-            setLoading(false)
+        } catch (err) {
+            console.error(err.message);
+            setError('Login failed: ' + err.message);
+        } finally {
+            setLoading(false);
         }
     };
+
     const handleRegister = async (e) => {
         e.preventDefault();
-        setLoading(true);
         setError('');
-    
+
+        if (password !== confirmPassword) {
+            setError('Passwords do not match');
+            return;
+        }
+
+        setLoading(true);
         try {
-            // Set the role first
             const userRole = serviceProvider ? 'service provider' : 'customer';
-            setRole(userRole);
-    
-            // Check password match
-            if (password !== confirmPassword) {
-                setError('Passwords do not match');
-                setLoading(false);
+
+            // Use already-verified coordinates, otherwise verify now
+            const coords = locationVerified ? coordinates : await getCoordinate(location);
+            if (!coords) {
+                setError('Please verify your location before registering');
                 return;
             }
-    
-            // Handle location verification
-            let coords = null;
-            
-            if (!locationVerified) {
-                // If location is not verified yet, verify it now
-                coords = await getCoordinate(location);
-                if (!coords) {
-                    setError('Please verify your location before registering');
-                    setLoading(false);
-                    return;
-                }
-            } else {
-                // Use already verified coordinates
-                coords = coordinates;
-            }
-    
-            // Register the user
+
             const response = await register(
                 firstName,
                 lastName,
                 email,
-                userRole, // Use the variable we set above
+                userRole,
                 password,
                 location,
                 coords.longitude,
                 coords.latitude
             );
-    
+
             if (response.success) {
-                // Handle successful registration
-                if (userRole === 'service provider') {
-                    // Log in and redirect to provider signup
-                    await login(email, password);
-                    navigate('/provider-signup');
-                } else {
-                    // Log in and redirect to customer dashboard
-                    await login(email, password);
-                    navigate('/dashboard/customer');
-                }
+                await login(email, password);
+                navigate(userRole === 'service provider' ? '/provider-signup' : '/dashboard/customer');
+            } else {
+                setError(response.message || 'Registration failed. Please try again.');
             }
-        } catch (error) {
-            console.error('Registration error:', error);
-            setError('Registration failed: ' + error.message);
+        } catch (err) {
+            console.error('Registration error:', err);
+            setError('Registration failed: ' + err.message);
         } finally {
             setLoading(false);
         }
     };
-    const toggleServiceProvider = (e) => {
-        e.preventDefault();
-        setServiceProvider((prevState) => !prevState);
-    };
 
-    const validateLocation = async () => {
-        if (!location) {
-            setLocationError('Please enter a location');
-            return;
-        }
-        await getCoordinate(location);
-    };
+    const passwordType = showPassword ? 'text' : 'password';
+    const passwordToggle = (
+        <PasswordToggle visible={showPassword} onToggle={() => setShowPassword((v) => !v)} />
+    );
 
     return (
-        <div className="min-h-screen flex flex-col md:flex-row">
-            {/* Background image covering half of the page */}
+        <div className="relative min-h-screen w-full overflow-x-hidden md:flex">
+            {/* Image: full-page background on mobile/tablet, left half on md+ */}
             <div
-                className="w-full md:w-1/2 h-64 md:h-auto"
-                style={{
-                    backgroundImage: `url(${loginImg})`,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                }}
-            ></div>
+                aria-hidden="true"
+                className="absolute inset-0 bg-cover bg-center md:relative md:inset-auto md:w-1/2"
+                style={{ backgroundImage: `url(${loginImg})` }}
+            />
+            {/* Dark overlay, mobile/tablet only */}
+            <div aria-hidden="true" className="absolute inset-0 bg-black/60 md:hidden" />
 
-            {/* Login form covering the other half */}
-            {openLoginForm && (
-                <div className="w-full md:w-1/2 flex items-center justify-center p-4">
-                    <form className="bg-white p-8 rounded shadow-md w-full max-w-md" onSubmit={handleLogin}>
-                        <h2 className="text-2xl font-bold mb-4 text-center">Login</h2>
-                        <div className="mb-4">
-                            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                                Email Address
-                            </label>
-                            <input
-                                onChange={(e) => setEmail(e.target.value)}
-                                value={email}
-                                name="email"
-                                type="email"
+            {/* Form side */}
+            <main className="relative z-10 flex min-h-screen w-full items-center justify-center px-4 py-8 md:w-1/2 md:bg-gray-50">
+                <div className="w-[90%] max-w-sm rounded-2xl bg-white/90 p-6 shadow-xl backdrop-blur-md md:w-full md:max-w-[400px] md:bg-white md:p-8 md:backdrop-blur-none">
+                    <Link
+                        to="/"
+                        className="mb-6 block rounded text-center font-sans text-2xl font-extrabold text-black focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    >
+                        HandyConnect
+                    </Link>
+
+                    <h1 className="mb-6 text-center text-xl font-bold text-gray-900">
+                        {isLogin ? 'Login' : 'Create your account'}
+                    </h1>
+
+                    {isLogin ? (
+                        <form onSubmit={handleLogin} className="space-y-4" noValidate={false}>
+                            <Field
                                 id="email"
+                                label="Email Address"
+                                icon={Mail}
+                                type="email"
+                                autoComplete="email"
                                 required
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
                                 placeholder="Enter your email"
-                                className="mt-1 p-2 border bg-gray-300 rounded w-full"
                             />
-                        </div>
-                        <div className="mb-6">
-                            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                                Password
-                            </label>
-                            <input
-                                onChange={(e) => setPassword(e.target.value)}
-                                value={password}
-                                name="password"
-                                type="password"
+                            <Field
                                 id="password"
+                                label="Password"
+                                icon={Lock}
+                                type={passwordType}
+                                autoComplete="current-password"
                                 required
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
                                 placeholder="Enter your password"
-                                className="mt-1 p-2 border bg-gray-300 rounded w-full"
+                                trailing={passwordToggle}
                             />
-                        </div>
-                        <button type="submit" className="w-full bg-purple-700 text-white p-2 rounded hover:bg-blue-600">
-                            {loading ? 'Logging In' : "Login"}
-                        </button>
-                        <p className="text-center m-4 text-xs">
-                            Want an account ?
-                            <a className="cursor-pointer underline ml-2 hover:text-purple-700 font-medium" onClick={toggleRegisterForm}>
-                                Register here
-                            </a>
-                        </p>
-                    </form>
-                </div>
-            )}
-            {openRegisterForm && (
-                 <div className="w-full md:w-1/2 flex items-center justify-center p-4">
-                   <form className="bg-white p-6 md:p-8 rounded shadow-md w-full max-w-lg" onSubmit={handleRegister}>
-                        <h2 className="text-2xl font-bold mb-4 text-center">Sign up</h2>
-                       <div className="flex flex-col md:flex-row gap-4">
-                            <div className="mb-4">
-                                <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">
-                                    First Name
-                                </label>
-                                <input
-                                    onChange={(e) => setFirstName(e.target.value)}
-                                    value={firstName}
-                                    type="text"
+
+                            {error && (
+                                <p role="alert" className="text-center text-sm text-red-600">
+                                    {error}
+                                </p>
+                            )}
+
+                            <SubmitButton loading={loading} loadingText="Logging in...">
+                                Login
+                            </SubmitButton>
+                        </form>
+                    ) : (
+                        <form onSubmit={handleRegister} className="space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
+                                <Field
                                     id="firstName"
-                                    name="firstName"
-                                    required
-                                    placeholder="Enter your first name"
-                                    className="mt-1 p-2 border bg-gray-300 rounded w-full"
-                                />
-                            </div>
-                            <div className="mb-4">
-                                <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">
-                                    Last Name
-                                </label>
-                                <input
-                                    onChange={(e) => setLastName(e.target.value)}
-                                    value={lastName}
+                                    label="First Name"
+                                    icon={User}
                                     type="text"
-                                    id="lastName"
-                                    name="lastName"
+                                    autoComplete="given-name"
                                     required
-                                    placeholder="Enter your last name"
-                                    className="mt-1 p-2 border bg-gray-300 rounded w-full"
+                                    value={firstName}
+                                    onChange={(e) => setFirstName(e.target.value)}
+                                    placeholder="First name"
+                                    className="min-w-0"
+                                />
+                                <Field
+                                    id="lastName"
+                                    label="Last Name"
+                                    icon={User}
+                                    type="text"
+                                    autoComplete="family-name"
+                                    required
+                                    value={lastName}
+                                    onChange={(e) => setLastName(e.target.value)}
+                                    placeholder="Last name"
+                                    className="min-w-0"
                                 />
                             </div>
-                        </div>
-                        <div className="mb-4">
-                            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                                Email Address
-                            </label>
-                            <input
-                                onChange={(e) => setEmail(e.target.value)}
-                                value={email}
-                                type="email"
+                            <Field
                                 id="email"
+                                label="Email Address"
+                                icon={Mail}
+                                type="email"
+                                autoComplete="email"
                                 required
-                                name="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
                                 placeholder="Enter your email"
-                                className="mt-1 p-2 border bg-gray-300 rounded w-full"
                             />
-                        </div>
-                        <div className="mb-6">
-                            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                                Password
-                            </label>
-                            <input
-                                onChange={(e) => setPassword(e.target.value)}
-                                value={password}
-                                type="password"
+                            <Field
                                 id="password"
-                                name="password"
+                                label="Password"
+                                icon={Lock}
+                                type={passwordType}
+                                autoComplete="new-password"
                                 required
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
                                 placeholder="Enter your password"
-                                className="mt-1 p-2 border bg-gray-300 rounded w-full"
+                                trailing={passwordToggle}
                             />
-                        </div>
-                        <div className="mb-4">
-                            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                                Confirm password
-                            </label>
-                            <input
-                                onChange={(e) => setConfirmPassword(e.target.value)}
-                                value={confirmPassword}
-                                type="password"
+                            <Field
                                 id="confirmPassword"
-                                name="confirmPassword"
+                                label="Confirm Password"
+                                icon={Lock}
+                                type={passwordType}
+                                autoComplete="new-password"
                                 required
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
                                 placeholder="Confirm your password"
-                                className="mt-1 p-2 border bg-gray-300 rounded w-full"
                             />
-                        </div>
-                        <div className="mb-4 relative">
-    <label htmlFor="location" className="block text-sm font-medium text-gray-700">
-        Location
-    </label>
-    <div className="flex flex-col sm:flex-row gap-2">
-        <input
-            onChange={(e) => {
-                setLocation(e.target.value);
-                setLocationVerified(false); // Reset verification when location changes
-            }}
-            value={location}
-            type="text"
-            id="location"
-            name="location"
-            required
-            placeholder="(Address, City, Country)"
-            className="mt-1 p-2 border bg-gray-300 rounded w-full"
-        />
-        <button
-            type="button"
-            onClick={validateLocation}
-            disabled={locationLoading || !location}
-           className="w-full sm:w-auto px-3 py-2 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
-        >
-            {locationLoading ? 'Verifying...' : 'Verify'}
-        </button>
-    </div>
-    {locationVerified && (
-        <p className="text-green-600 text-xs mt-1">✓ Location verified successfully</p>
-    )}
-    {locationError && (
-        <p className="text-red-500 text-xs mt-1">{locationError}</p>
-    )}
-    {!locationVerified && !locationError && location && (
-        <p className="text-amber-500 text-xs mt-1">Please verify your location</p>
-    )}
-</div>
-                       
-                        <div>
-                            <p className="text-xs font-semibold text-gray-800 mb-1 underline">Are you a service provider?</p>
-                            <button
-                                type="button"
-                                name="role"
-                                onClick={toggleServiceProvider}
-                                className={`w-14 h-8 flex items-center bg-gray-300 rounded-full p-1 ${
-                                    serviceProvider ? 'bg-green-400' : 'bg-gray-300'
-                                }`}
-                            >
-                                <div
-                                    className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform ${
-                                        serviceProvider ? 'translate-x-6' : 'translate-x-0'
+
+                            <div>
+                                <div className="flex items-end gap-2">
+                                    <Field
+                                        id="location"
+                                        label="Location"
+                                        icon={MapPin}
+                                        type="text"
+                                        required
+                                        value={location}
+                                        onChange={(e) => {
+                                            setLocation(e.target.value);
+                                            setLocationVerified(false);
+                                            setLocationError('');
+                                        }}
+                                        placeholder="Address, City, Country"
+                                        className="min-w-0 flex-1"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => getCoordinate(location)}
+                                        disabled={locationLoading || !location}
+                                        className="h-12 shrink-0 rounded-lg border border-gray-300 bg-gray-100 px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        {locationLoading ? 'Verifying...' : 'Verify'}
+                                    </button>
+                                </div>
+                                {locationVerified && (
+                                    <p className="mt-1 flex items-center gap-1 text-xs text-green-600">
+                                        <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                                        Location verified successfully
+                                    </p>
+                                )}
+                                {locationError && (
+                                    <p role="alert" className="mt-1 text-xs text-red-600">
+                                        {locationError}
+                                    </p>
+                                )}
+                                {!locationVerified && !locationError && location && (
+                                    <p className="mt-1 text-xs text-amber-600">Please verify your location</p>
+                                )}
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3">
+                                <span id="provider-label" className="text-sm font-medium text-gray-700">
+                                    Are you a service provider?
+                                </span>
+                                <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={serviceProvider}
+                                    aria-labelledby="provider-label"
+                                    onClick={() => setServiceProvider((v) => !v)}
+                                    className={`flex h-8 w-14 shrink-0 items-center rounded-full p-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
+                                        serviceProvider ? 'bg-blue-600' : 'bg-gray-300'
                                     }`}
-                                ></div>
-                            </button>
-                        </div>
+                                >
+                                    <span
+                                        className={`h-6 w-6 rounded-full bg-white shadow-md transition-transform ${
+                                            serviceProvider ? 'translate-x-6' : 'translate-x-0'
+                                        }`}
+                                    />
+                                </button>
+                            </div>
+
+                            {error && (
+                                <p role="alert" className="text-center text-sm text-red-600">
+                                    {error}
+                                </p>
+                            )}
+
+                            <SubmitButton loading={loading} loadingText="Signing you up...">
+                                Register
+                            </SubmitButton>
+                        </form>
+                    )}
+
+                    <p className="mt-6 text-center text-sm text-gray-600">
+                        {isLogin ? 'Want an account?' : 'Already have an account?'}{' '}
                         <button
-                            type="submit"
-                            className="w-full bg-purple-700 text-white p-2 rounded hover:bg-blue-600"
+                            type="button"
+                            onClick={switchMode}
+                            className="rounded font-medium text-blue-600 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                         >
-                            {loading ? 'Signing you up' : "Register"}
-
+                            {isLogin ? 'Register here' : 'Log in here'}
                         </button>
-                        <p className="text-center m-4 text-xs">
-                            Already have an account?
-                            <a className="cursor-pointer underline font-medium hover:text-purple-700" onClick={toggleRegisterForm}>
-                                Log in here
-                            </a>
-                        </p>
-
-                        {error && <p className="text-red-500 text-center">{error}</p>}
-                    </form>
+                    </p>
                 </div>
-            )}
-
-
+            </main>
         </div>
     );
 };

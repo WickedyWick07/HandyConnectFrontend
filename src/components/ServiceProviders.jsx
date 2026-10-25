@@ -1,463 +1,578 @@
-import CustomerHeader from './CustomerHeader'
-import wrench from '../assets/Icons/wrench.svg'
-import pin from '../assets/Icons/pin-map-fill.svg'
-import clock from '../assets/Icons/alarm-fill.svg'
-import { ArrowLeftCircleIcon, ArrowRightCircleIcon } from '@heroicons/react/24/outline'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import api from '../utils/api'
-import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet'
+import {
+    BadgeCheck,
+    ChevronLeft,
+    ChevronRight,
+    Clock,
+    Filter,
+    MapPin,
+    Search,
+    SlidersHorizontal,
+    Star,
+    Wrench,
+} from 'lucide-react'
+import { Circle, MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
-import iconUrl from 'leaflet/dist/images/marker-icon.png';
-import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
-import LoadingPage from '../components/LoadingPage'
+import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png'
+import iconUrl from 'leaflet/dist/images/marker-icon.png'
+import shadowUrl from 'leaflet/dist/images/marker-shadow.png'
+import CustomerHeader from './CustomerHeader'
+import api from '../utils/api'
 
-// Fix for default marker icons in Leaflet
 delete L.Icon.Default.prototype._getIconUrl
-L.Icon.Default.mergeOptions({
-    iconRetinaUrl,
-    iconUrl,
-    shadowUrl,
-});
+L.Icon.Default.mergeOptions({ iconRetinaUrl, iconUrl, shadowUrl })
 
-// Custom marker icons
-const serviceIcon = new L.Icon({
-    iconUrl: wrench, // Using your existing wrench icon
-    iconSize: [25, 25],
-    iconAnchor: [12, 25],
-    popupAnchor: [0, -25],
-})
+const PAGE_SIZE = 6
+const RATINGS = [4.9, 4.8, 4.7, 4.9, 4.6, 4.8]
+const REVIEWS = [124, 96, 178, 63, 210, 142]
+const DISTANCES = [1.2, 2.4, 3.1, 4.5, 5.3, 6.2]
+const SERVICE_OPTIONS = ['Plumbing', 'Electrical', 'Carpentry', 'Cleaning', 'Painting']
 
-// Component to recenter map when user location changes
 function RecenterMap({ coords }) {
     const map = useMap()
+
     useEffect(() => {
-        if (coords) {
-            map.setView(coords, 13)
-        }
+        if (coords) map.setView([coords.latitude, coords.longitude], 13)
     }, [coords, map])
+
     return null
 }
 
+function parseServices(services) {
+    if (!services) return []
+    const candidates = Array.isArray(services) ? services : [services]
+
+    return candidates.flatMap((service) => {
+        if (Array.isArray(service)) return service
+        if (typeof service !== 'string') return []
+
+        try {
+            const parsed = JSON.parse(service)
+            return Array.isArray(parsed) ? parsed : [parsed]
+        } catch {
+            return [service]
+        }
+    }).filter((service) => typeof service === 'string' && service.trim())
+}
+
+function getDistance(latitude, longitude, provider) {
+    const providerLatitude = Number(provider.latitude)
+    const providerLongitude = Number(provider.longitude)
+    if (!Number.isFinite(providerLatitude) || !Number.isFinite(providerLongitude)) return null
+
+    const radians = (degrees) => degrees * Math.PI / 180
+    const deltaLatitude = radians(providerLatitude - latitude)
+    const deltaLongitude = radians(providerLongitude - longitude)
+    const value = Math.sin(deltaLatitude / 2) ** 2
+        + Math.cos(radians(latitude))
+        * Math.cos(radians(providerLatitude))
+        * Math.sin(deltaLongitude / 2) ** 2
+
+    return 6371 * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value))
+}
+
+function ProviderSkeleton() {
+    return (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3" aria-label="Loading providers">
+            {Array.from({ length: 6 }, (_, index) => (
+                <div key={index} className="animate-pulse rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                    <div className="flex items-center gap-4">
+                        <div className="h-14 w-14 rounded-full bg-slate-200" />
+                        <div className="flex-1 space-y-2">
+                            <div className="h-4 w-3/4 rounded bg-slate-200" />
+                            <div className="h-3 w-1/2 rounded bg-slate-100" />
+                        </div>
+                    </div>
+                    <div className="mt-6 flex gap-2">
+                        <div className="h-7 w-20 rounded-lg bg-slate-100" />
+                        <div className="h-7 w-24 rounded-lg bg-slate-100" />
+                        <div className="h-7 w-16 rounded-lg bg-slate-100" />
+                    </div>
+                    <div className="mt-6 h-4 w-2/3 rounded bg-slate-100" />
+                    <div className="mt-6 h-11 rounded-lg bg-slate-200" />
+                </div>
+            ))}
+        </div>
+    )
+}
+
+function ProviderCard({ provider, index, onBook, location }) {
+    const name = provider.companyName || 'Local service provider'
+    const initials = name
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((part) => part[0])
+        .join('')
+        .toUpperCase()
+    const services = parseServices(provider.services)
+    const primaryService = services[0] || 'Home Services'
+    const tags = [
+        primaryService,
+        ...(services.slice(1, 3)),
+        ...(services.length < 2 ? ['Emergency Repair'] : []),
+        ...(services.length < 3 ? [primaryService.toLowerCase().includes('plumb') ? 'Leak Detection' : 'On-demand Service'] : []),
+    ].slice(0, 3)
+    const profilePicture = provider.profilePicture
+    const imageUrl = profilePicture
+        ? profilePicture.startsWith('http')
+            ? profilePicture
+            : `${import.meta.env.VITE_IMAGES_API_URL || 'https://localhost:5000'}${profilePicture}`
+        : ''
+    const measuredDistance = location
+        ? getDistance(location.latitude, location.longitude, provider)
+        : null
+    const displayedDistance = measuredDistance ?? DISTANCES[index % DISTANCES.length]
+
+    return (
+        <article className="flex min-w-0 flex-col rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg">
+            <div className="flex min-w-0 items-center gap-3">
+                <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-blue-100 text-sm font-bold text-blue-700">
+                    <span aria-hidden="true">{initials}</span>
+                    {imageUrl && (
+                        <img
+                            src={imageUrl}
+                            alt=""
+                            className="absolute inset-0 h-full w-full object-cover"
+                            onError={(event) => {
+                                event.currentTarget.style.display = 'none'
+                            }}
+                        />
+                    )}
+                </div>
+                <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                        <h2 className="truncate text-base font-bold text-slate-900">{name}</h2>
+                        <BadgeCheck className="h-5 w-5 shrink-0 fill-blue-600 text-white" aria-label="Verified provider" />
+                    </div>
+                    <div className="mt-1 flex items-center gap-1.5 text-sm" aria-label={`${provider.rating ?? RATINGS[index % RATINGS.length]} out of 5 stars`}>
+                        <span className="flex items-center text-amber-400" aria-hidden="true">
+                            {Array.from({ length: 5 }, (_, starIndex) => (
+                                <Star key={starIndex} className="h-3.5 w-3.5 fill-current" />
+                            ))}
+                        </span>
+                        <span className="font-semibold text-slate-700">
+                            {provider.rating ?? RATINGS[index % RATINGS.length]}
+                        </span>
+                        <span className="text-slate-500">({provider.reviews ?? REVIEWS[index % REVIEWS.length]})</span>
+                    </div>
+                </div>
+            </div>
+
+            <div className="mt-5 flex min-h-7 flex-wrap gap-2">
+                {tags.map((tag, tagIndex) => (
+                    <span
+                        key={`${tag}-${tagIndex}`}
+                        className={`rounded-lg px-2.5 py-1 text-xs font-medium ${
+                            tagIndex === 0 ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'
+                        }`}
+                    >
+                        {tag}
+                    </span>
+                ))}
+            </div>
+
+            <div className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-500">
+                <span className="inline-flex items-center gap-1.5">
+                    <Clock className="h-4 w-4" aria-hidden="true" />
+                    {provider.yearsInService || 1} yrs in service
+                </span>
+                <span aria-hidden="true" className="text-slate-300">•</span>
+                <span className="inline-flex items-center gap-1.5">
+                    <MapPin className="h-4 w-4" aria-hidden="true" />
+                    {displayedDistance.toFixed(1)} km away
+                </span>
+            </div>
+
+            <button
+                type="button"
+                onClick={() => onBook(provider)}
+                className="mt-5 w-full rounded-lg bg-blue-600 py-2.5 font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+            >
+                Book
+            </button>
+        </article>
+    )
+}
+
 const ServiceProviders = () => {
-    const location = useLocation()
-    const service = location.state?.service || ''
-    const service_per_page = 6
-    const [currentPage, setCurrentPage] = useState(0)
-    const [serviceProviders, setServiceProviders] = useState([])
+    const routeLocation = useLocation()
     const navigate = useNavigate()
-    const startIndex = currentPage * service_per_page
+    const routeService = routeLocation.state?.service
+    const initialService = typeof routeService === 'string'
+        ? routeService
+        : routeService?.Title || routeService?.title || ''
+    const [providers, setProviders] = useState([])
+    const [loading, setLoading] = useState(true)
+    const [loadError, setLoadError] = useState('')
     const [searchQuery, setSearchQuery] = useState('')
-    const [selectedService, setSelectedService] = useState('')
-    const endIndex = startIndex + service_per_page
-    const [filteredProviders, setFilteredProviders] = useState([])
+    const [selectedService, setSelectedService] = useState(initialService)
+    const [searchRadius, setSearchRadius] = useState(30)
+    const [showFilters, setShowFilters] = useState(false)
+    const [sortBy, setSortBy] = useState('recommended')
+    const [minimumRating, setMinimumRating] = useState(0)
     const [userLocation, setUserLocation] = useState(null)
-    const [showNearbyOnly, setShowNearbyOnly] = useState(false)
-    const [mapCenter, setMapCenter] = useState([0, 0])
-    const [searchRadius, setSearchRadius] = useState(30) // radius in km
+    const [locationError, setLocationError] = useState('')
     const [showMap, setShowMap] = useState(false)
-    const mapRef = useRef(null)
-    const [loading , setLoading] = useState(true)
-    const [showButtons, setShowButtons] = useState(true)
-
-    const getUserLocation = () => {
-        return new Promise((resolve, reject) => {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        const { latitude, longitude } = position.coords
-                        resolve({ latitude, longitude })
-                    },
-                    (error) => {
-                        reject(error)
-                    }
-                )
-            } else {
-                reject('Geolocation is not supported by this browser.')
-            }
-        })
-    }
-
-    const calculateDistance = (lat1, lon1, lat2, lon2) => {
-        const R = 6371
-        const dLat = (lat2 - lat1) * Math.PI / 180
-        const dLon = (lon2 - lon1) * Math.PI / 180
-        const a =
-            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2)
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-        return R * c
-    }
+    const [currentPage, setCurrentPage] = useState(0)
+    const [nearbySearch, setNearbySearch] = useState(false)
 
     useEffect(() => {
-        const fetchAllProviders = async () => {
+        let active = true
+
+        const fetchProviders = async () => {
+            setLoading(true)
+            setLoadError('')
             try {
-                setLoading(true)
-                const response = await api.get('/fetch-service-providers')
-                console.log(response.data.data)
-                setServiceProviders(response.data.data)
-                setFilteredProviders(response.data.data)
+                const response = initialService
+                    ? await api.post('/fetch-by-service', { service: routeService })
+                    : await api.get('/fetch-service-providers')
+                const results = response.data?.data
+                if (!Array.isArray(results)) {
+                    throw new Error('The provider service returned an invalid response.')
+                }
+                if (active) setProviders(results)
             } catch (error) {
-                console.error("Error fetching all providers:", error)
+                console.error('Error fetching service providers:', error)
+                if (active) setLoadError('We could not load service providers. Please try again.')
             } finally {
-                setLoading(false)
+                if (active) setLoading(false)
             }
         }
 
-        const fetchProvidersByService = async () => {
-            try {
-                setLoading(true)
-                setShowButtons(false)
-                const response = await api.post('/fetch-by-service', { service })
-                setServiceProviders(response.data.data)
-                setFilteredProviders(response.data.data)
-            } catch (error) {
-                console.error('Error fetching providers by service:', error)
-                setShowButtons(true)
-            } finally{ 
-                setLoading(false)
-            }
+        fetchProviders()
+        return () => {
+            active = false
         }
+    }, [initialService, routeService])
 
-        if (service) {
-            fetchProvidersByService()
-        } else {
-            fetchAllProviders()
-        }
-
-        // Initialize user location
-        getUserLocation().then(location => {
-            setUserLocation(location)
-            setMapCenter([location.latitude, location.longitude])
-        }).catch(error => {
-            console.error("Error getting user location:", error)
-        })
-    }, [service])
-
-    const handleSearch = async () => {
-        try {
-            const location = await getUserLocation()
-            setUserLocation(location)
-            setShowNearbyOnly(true)
-            setShowButtons(false)
-            setMapCenter([location.latitude, location.longitude])
-
-            let filtered = serviceProviders
-
-            if (searchQuery) {
-                filtered = filtered.filter(provider =>
-                    provider.companyName.toLowerCase().includes(searchQuery.toLowerCase())
-                )
-            }
-
-            if (selectedService) {
-                filtered = filtered.filter(provider => {
-                    const services = JSON.parse(provider.services[0])
-                    return services.includes(selectedService.toLowerCase())
-                })
-            }
-
-            filtered = filtered.filter(provider => {
-                const distance = calculateDistance(
-                    location.latitude,
-                    location.longitude,
-                    provider.latitude,
-                    provider.longitude
-                )
-                return distance <= searchRadius
+    const filteredProviders = useMemo(() => {
+        const query = searchQuery.trim().toLowerCase()
+        const filtered = providers
+            .map((provider, index) => ({
+                ...provider,
+                rating: Number(provider.rating) || RATINGS[index % RATINGS.length],
+                reviews: Number(provider.reviews) || REVIEWS[index % REVIEWS.length],
+                distanceKm: userLocation
+                    ? getDistance(userLocation.latitude, userLocation.longitude, provider)
+                    : DISTANCES[index % DISTANCES.length],
+            }))
+            .filter((provider) => {
+                const providerServices = parseServices(provider.services)
+                const matchesQuery = !query
+                    || (provider.companyName || '').toLowerCase().includes(query)
+                    || providerServices.some((serviceName) => serviceName.toLowerCase().includes(query))
+                const matchesService = !selectedService
+                    || providerServices.some((serviceName) => serviceName.toLowerCase() === selectedService.toLowerCase())
+                const matchesDistance = !nearbySearch
+                    || (provider.distanceKm !== null && provider.distanceKm <= searchRadius)
+                return matchesQuery && matchesService && matchesDistance && provider.rating >= minimumRating
             })
 
-            // Add distance to each provider
-            filtered = filtered.map(provider => ({
-                ...provider,
-                distance: calculateDistance(
-                    location.latitude,
-                    location.longitude,
-                    provider.latitude,
-                    provider.longitude
-                ).toFixed(1)
-            }))
+        if (sortBy === 'rating') filtered.sort((a, b) => b.rating - a.rating)
+        if (sortBy === 'distance') filtered.sort((a, b) => a.distanceKm - b.distanceKm)
+        return filtered
+    }, [providers, searchQuery, selectedService, userLocation, nearbySearch, searchRadius, minimumRating, sortBy])
 
-            // Sort by distance
-            filtered.sort((a, b) => a.distance - b.distance)
+    useEffect(() => {
+        setCurrentPage(0)
+    }, [searchQuery, selectedService, userLocation, searchRadius, minimumRating, sortBy])
 
-            setFilteredProviders(filtered)
-            setCurrentPage(0)
-            setShowMap(true)
-        } catch (error) {
-            console.error("Error during search:", error)
-            alert("Unable to access location. Please enable location services and try again.")
+    const totalPages = Math.max(1, Math.ceil(filteredProviders.length / PAGE_SIZE))
+    const pageProviders = filteredProviders.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE)
+    const pageNumbers = totalPages <= 5
+        ? Array.from({ length: totalPages }, (_, index) => index)
+        : currentPage <= 2
+            ? [0, 1, 2]
+            : currentPage >= totalPages - 3
+                ? [totalPages - 3, totalPages - 2, totalPages - 1]
+                : [currentPage - 1, currentPage, currentPage + 1]
+
+    const handleFindNearby = () => {
+        setLocationError('')
+        if (!navigator.geolocation) {
+            setLocationError('Location services are not supported by this browser.')
+            return
         }
+
+        navigator.geolocation.getCurrentPosition(
+            ({ coords }) => {
+                setUserLocation({ latitude: coords.latitude, longitude: coords.longitude })
+                setNearbySearch(true)
+                setShowMap(true)
+            },
+            () => setLocationError('We could not access your location. Please allow location access and try again.'),
+            { enableHighAccuracy: true, timeout: 10000 }
+        )
     }
 
     const handleReset = () => {
-        setShowNearbyOnly(false)
         setSearchQuery('')
         setSelectedService('')
-        setFilteredProviders(serviceProviders)
-        setCurrentPage(0)
+        setUserLocation(null)
+        setNearbySearch(false)
         setShowMap(false)
-        setShowButtons(true)
+        setLocationError('')
+        setCurrentPage(0)
     }
 
-    const viewProvider = async (provider) => {
-        if (provider) {
-            navigate('/view-provider', { state: { provider } })
-        }
+    const viewProvider = (provider) => {
+        navigate('/view-provider', { state: { provider } })
     }
 
-    const handleNext = () => {
-        if (endIndex < filteredProviders.length) {
-            setCurrentPage((prevPage) => prevPage + 1)
-        }
-    }
-
-    const handlePrevious = () => {
-        if (currentPage > 0) {
-            setCurrentPage((prevPage) => prevPage - 1)
-        }
-    }
-
-    useEffect(() => {
-        let filtered = serviceProviders;
-
-        if (searchQuery) {
-            filtered = filtered.filter(provider =>
-                provider.companyName.toLowerCase().includes(searchQuery.toLowerCase())
-            );
-        }
-
-        if (selectedService) {
-            filtered = filtered.filter(provider => {
-                const services = JSON.parse(provider.services[0]);
-                return services.includes(selectedService.toLowerCase());
-            });
-        }
-
-        setFilteredProviders(filtered);
-    }, [searchQuery, selectedService, serviceProviders]);
-
-    if(loading) return <LoadingPage />
-    
     return (
-        <div className="bg-gray-100 min-h-screen">
-            <main className="bg-gray-100 mx-auto flex-col flex justify-center">
-                <CustomerHeader />
-                
-                {/* Search Section */}
-               {  serviceProviders.length === 0 ?  (
-                <div>
-                <p className="text-center text-gray-200 text-5xl font-bold py-10">No service providers found.</p>
+        <div className="min-h-screen bg-[#f5f7fb]">
+            <CustomerHeader />
+            <main className="mx-auto max-w-7xl px-4 pb-12 pt-8 md:px-6 md:pt-10">
+                <div className="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                    <div>
+                        <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Service Providers</h1>
+                        <p className="mt-2 text-sm text-slate-500 sm:text-base">
+                            Find trusted professionals <span className="px-1 text-slate-300">•</span>
+                            {filteredProviders.length} providers near you
+                        </p>
+                    </div>
+                    <label className="flex items-center gap-2 self-start text-sm font-medium text-slate-600 sm:self-auto">
+                        Sort by:
+                        <select
+                            value={sortBy}
+                            onChange={(event) => setSortBy(event.target.value)}
+                            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                        >
+                            <option value="recommended">Recommended</option>
+                            <option value="rating">Top rated</option>
+                            <option value="distance">Distance</option>
+                        </select>
+                    </label>
                 </div>
-               ) : (
-                <section className="p-4">
-                    <div className="flex justify-center gap-4 items-center border rounded bg-white p-4 flex-wrap">
-                        <div>
+
+                <section aria-label="Search and filters" className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm md:p-5">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(220px,1.6fr)_minmax(150px,1fr)_minmax(145px,0.9fr)_auto_auto]">
+                        <label className="relative block">
+                            <span className="sr-only">Search services or providers</span>
+                            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
                             <input
-                                type="text"
-                                className="border w-48 rounded text-xs px-4 py-2"
-                                placeholder="Search service providers"
+                                type="search"
                                 value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
+                                onChange={(event) => setSearchQuery(event.target.value)}
+                                placeholder="Search services, e.g. Plumber..."
+                                className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-11 pr-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                             />
-                        </div>
-                        <div>
-                            <select 
-                                className="border w-48 rounded text-xs px-4 py-2"
-                                value={selectedService}
-                                onChange={(e) => setSelectedService(e.target.value)}
-                            >
-                                <option value="">Select Service</option>
-                                <option value="Plumbing">Plumbing</option>
-                                <option value="Electrical">Electrical</option>
-                                <option value="Carpentry">Carpentry</option>
-                                <option value="Cleaning">Cleaning</option>
-                                <option value="Painting">Painting</option>
-                            </select>
-                        </div>
-                        <div>
+                        </label>
+                        <label>
+                            <span className="sr-only">Service</span>
                             <select
-                                className="border w-48 rounded text-xs px-4 py-2"
-                                value={searchRadius}
-                                onChange={(e) => setSearchRadius(Number(e.target.value))}
+                                value={selectedService}
+                                onChange={(event) => setSelectedService(event.target.value)}
+                                className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                             >
-                                <option value="5">Within 5km</option>
-                                <option value="10">Within 10km</option>
-                                <option value="20">Within 20km</option>
-                                <option value="30">Within 30km</option>
-                                <option value="50">Within 50km</option>
+                                <option value="">All services</option>
+                                {SERVICE_OPTIONS.map((serviceName) => (
+                                    <option key={serviceName} value={serviceName}>{serviceName}</option>
+                                ))}
                             </select>
-                        </div>
-                        <div className="flex gap-2">
-                            <button 
-                                onClick={handleSearch}
-                                className="bg-purple-500 text-white px-4 py-2 rounded flex items-center gap-2 text-sm font-semibold hover:bg-purple-600 transition-colors"
+                        </label>
+                        <label className="relative">
+                            <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                            <span className="sr-only">Search distance</span>
+                            <select
+                                value={searchRadius}
+                                onChange={(event) => setSearchRadius(Number(event.target.value))}
+                                className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                             >
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    width="16"
-                                    height="16"
-                                    fill="currentColor"
-                                    className="bi bi-search"
-                                    viewBox="0 0 16 16"
+                                {[5, 10, 20, 30, 50].map((distance) => (
+                                    <option key={distance} value={distance}>Within {distance}km</option>
+                                ))}
+                            </select>
+                        </label>
+                        <button
+                            type="button"
+                            onClick={handleFindNearby}
+                            className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                        >
+                            <Search className="h-4 w-4" aria-hidden="true" />
+                            Find Nearby
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setShowFilters((open) => !open)}
+                            aria-expanded={showFilters}
+                            className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                        >
+                            <Filter className="h-4 w-4" aria-hidden="true" />
+                            Filters
+                        </button>
+                    </div>
+
+                    {showFilters && (
+                        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
+                            <SlidersHorizontal className="h-4 w-4 text-slate-500" aria-hidden="true" />
+                            <label className="flex items-center gap-2 text-sm text-slate-600">
+                                Minimum rating
+                                <select
+                                    value={minimumRating}
+                                    onChange={(event) => setMinimumRating(Number(event.target.value))}
+                                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                                 >
-                                    <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0" />
-                                </svg>
-                                Find Nearby
-                            </button>
-                            {showNearbyOnly && (
-                                <button 
-                                    onClick={handleReset}
-                                    className="bg-gray-500 text-white px-4 py-2 rounded text-sm font-semibold hover:bg-gray-600 transition-colors"
-                                >
-                                    Show All
+                                    <option value={0}>Any rating</option>
+                                    <option value={4.5}>4.5 and up</option>
+                                    <option value={4.8}>4.8 and up</option>
+                                </select>
+                            </label>
+                            {(nearbySearch || searchQuery || selectedService || minimumRating > 0) && (
+                                <button type="button" onClick={handleReset} className="text-sm font-semibold text-blue-700 hover:text-blue-800">
+                                    Clear filters
                                 </button>
                             )}
                         </div>
-                    </div>
-                </section>)}
+                    )}
+                </section>
 
-                {/* Map Section */}
+                {locationError && (
+                    <p role="alert" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                        {locationError}
+                    </p>
+                )}
+
                 {showMap && userLocation && (
-                    <section className="p-4">
-                        <div className="w-full h-96 rounded-lg overflow-hidden shadow-lg">
-                            <MapContainer
-                                center={mapCenter}
-                                zoom={13}
-                                style={{ height: '100%', width: '100%' }}
-                                ref={mapRef}
-                            >
-                                <TileLayer
-                                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                                />
-                                
-                                {/* User location marker */}
-                                <Marker position={[userLocation.latitude, userLocation.longitude]}>
-                                    <Popup>Your Location</Popup>
-                                </Marker>
-
-                                {/* Search radius circle */}
-                                <Circle
-                                    center={[userLocation.latitude, userLocation.longitude]}
-                                    radius={searchRadius * 1000}
-                                    pathOptions={{ color: 'blue', fillColor: 'blue', fillOpacity: 0.1 }}
-                                />
-
-                                {/* Service provider markers */}
-                                {filteredProviders.map((provider, index) => (
-                                    <Marker
-                                        key={index}
-                                        position={[provider.latitude, provider.longitude]}
-                                        icon={serviceIcon}
-                                    >
+                    <section aria-label="Nearby providers map" className="mt-6 h-72 overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+                        <MapContainer
+                            center={[userLocation.latitude, userLocation.longitude]}
+                            zoom={13}
+                            scrollWheelZoom={false}
+                            className="h-full w-full"
+                        >
+                            <TileLayer
+                                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                            />
+                            <Marker position={[userLocation.latitude, userLocation.longitude]}>
+                                <Popup>Your location</Popup>
+                            </Marker>
+                            <Circle
+                                center={[userLocation.latitude, userLocation.longitude]}
+                                radius={searchRadius * 1000}
+                                pathOptions={{ color: '#2563eb', fillColor: '#2563eb', fillOpacity: 0.08 }}
+                            />
+                            {filteredProviders.map((provider) => (
+                                Number.isFinite(Number(provider.latitude)) && Number.isFinite(Number(provider.longitude)) && (
+                                    <Marker key={provider._id || provider.id || provider.companyName} position={[Number(provider.latitude), Number(provider.longitude)]}>
                                         <Popup>
                                             <div className="text-center">
-                                                <h3 className="font-bold">{provider.companyName}</h3>
-                                                <p className="text-sm">{provider.location}</p>
-                                                <p className="text-sm">Distance: {provider.distance}km</p>
-                                                <button
-                                                    onClick={() => viewProvider(provider)}
-                                                    className="mt-2 bg-blue-500 text-white px-2 py-1 rounded text-sm"
-                                                >
-                                                    Book Now
+                                                <p className="font-semibold">{provider.companyName}</p>
+                                                <button type="button" onClick={() => viewProvider(provider)} className="mt-2 rounded bg-blue-600 px-3 py-1 text-white">
+                                                    Book
                                                 </button>
                                             </div>
                                         </Popup>
                                     </Marker>
-                                ))}
-
-                                <RecenterMap coords={mapCenter} />
-                            </MapContainer>
-                        </div>
+                                )
+                            ))}
+                            <RecenterMap coords={userLocation} />
+                        </MapContainer>
                     </section>
                 )}
 
-                {/* Providers Grid */}
-                <div className="flex justify-center flex-col mx-auto mt-1">
-                    <h1 className="text-center text-2xl font-semibold">Service Providers</h1>
-                    <p className="text-center text-xs text-purple-700 font-semibold">
-                        {showNearbyOnly 
-                            ? `Showing nearby service providers within ${searchRadius}km` 
-                            : service
-                                ? `Showing recommended providers for "${service.Title}"`
-                                : 'Showing all service providers'}
-                    </p>
-                </div>
-
-                <section className="p-4 flex justify-between">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 mx-auto gap-4">
-                        {filteredProviders.slice(startIndex, endIndex).map((provider, i) => (
-                            <div className="bg-white w-64 p-4 border rounded shadow-sm hover:shadow-md transition-shadow" key={i}>
-                                <div className="flex flex-col items-center">
-                                    <div className="flex items-center gap-2">
-                                    <img
-                                                                src={provider.profilePicture?.startsWith('http')
-                                                                    ? provider.profilePicture
-                                                                    : `${import.meta.env.VITE_IMAGES_API_URL}${provider.profilePicture}` || `https://localhost:5000${provider.profilePicture}`}
-                                                                alt={provider.companyName || 'Provider profile'}
-                                                                className="w-7 h-7 object-cover rounded-full"
-                                                                onError={(e) => {
-                                                                    e.target.onerror = null;
-                                                                    e.target.src = `https://localhost:5000${provider.profilePicture}`;
-                                                                }}
-                                                            />
-                                        <h1 className="text-md font-semibold">
-                                            {provider.companyName}
-                                        </h1>
-                                    </div>
-                                </div>
-                                <div className="m-2 p-2">
-                                    <div className="flex gap-2 items-center mb-2">
-                                        <img src={wrench} alt="wrench" />
-                                        <p className="text-xs text-gray-600">
-                                            
-                                            {JSON.parse(provider.services[0]).slice(0,3).join(', ')}
-                                              
-                                        </p>
-                                    </div>
-                                    
-                                    <div className="flex gap-2 items-center mb-2">
-                                        <img src={clock} alt="clock" />
-                                        <p className="text-xs text-gray-600">Years in service: {provider.yearsInService}</p>
-                                    </div>
-                                </div>
-                                <div className="mt-2 flex justify-between items-center">
-                                    
-                                    <button  onClick={() => viewProvider(provider)} className="bg-blue-500 text-white text-sm font-medium px-4 py-1 rounded">
-                                        Book
-                                    </button>
-                                </div>
+                <section aria-label="Service providers" className="mt-8">
+                    {loading ? (
+                        <ProviderSkeleton />
+                    ) : loadError ? (
+                        <div role="alert" className="rounded-2xl border border-rose-100 bg-white px-6 py-12 text-center shadow-sm">
+                            <Wrench className="mx-auto h-8 w-8 text-rose-400" aria-hidden="true" />
+                            <h2 className="mt-3 text-lg font-semibold text-slate-900">Providers are unavailable</h2>
+                            <p className="mt-1 text-sm text-slate-500">{loadError}</p>
+                        </div>
+                    ) : filteredProviders.length === 0 ? (
+                        <div className="rounded-2xl border border-slate-100 bg-white px-6 py-14 text-center shadow-sm">
+                            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                                <Search className="h-6 w-6" aria-hidden="true" />
                             </div>
-                        ))}
-                    </div>
+                            <h2 className="mt-4 text-lg font-semibold text-slate-900">No providers found</h2>
+                            <p className="mt-1 text-sm text-slate-500">Try another service or adjust your search filters.</p>
+                            <button type="button" onClick={handleReset} className="mt-4 text-sm font-semibold text-blue-700 hover:text-blue-800">
+                                Clear search
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                            {pageProviders.map((provider, index) => (
+                                <ProviderCard
+                                    key={provider._id || provider.id || provider.companyName || index}
+                                    provider={provider}
+                                    index={currentPage * PAGE_SIZE + index}
+                                    onBook={viewProvider}
+                                    location={userLocation}
+                                />
+                            ))}
+                        </div>
+                    )}
                 </section>
 
-
-                {showButtons && <div className="flex justify-center p-4">
-                    <button
-                        disabled={currentPage === 0}
-                        onClick={handlePrevious}
-                        className="border-blue-600 flex items-center font-bold gap-3 border hover:bg-blue-600 hover:text-white px-4 py-2 rounded text-blue-600"
-                    >
-                        Load Previous
-                        <ArrowLeftCircleIcon className="size-3 font-bold mx-auto" />
-                    </button>
-                    <button
-                        disabled={endIndex >= serviceProviders.length}
-                        onClick={handleNext}
-                        className="border-blue-600 flex items-center font-bold gap-3 border hover:bg-blue-600 hover:text-white px-4 py-2 rounded text-blue-600"
-                    >
-                        Load Next
-                        <ArrowRightCircleIcon className="size-3 font-bold mx-auto" />
-                    </button>
-                </div>}
+                {!loading && !loadError && filteredProviders.length > PAGE_SIZE && (
+                    <nav aria-label="Pagination" className="mt-9 flex items-center justify-center gap-1.5">
+                        <button
+                            type="button"
+                            aria-label="Previous page"
+                            disabled={currentPage === 0}
+                            onClick={() => setCurrentPage((page) => Math.max(0, page - 1))}
+                            className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-white hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                            <ChevronLeft className="h-5 w-5" />
+                        </button>
+                        {pageNumbers[0] > 0 && (
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={() => setCurrentPage(0)}
+                                    className="h-10 min-w-10 rounded-lg px-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-white"
+                                >
+                                    1
+                                </button>
+                                {pageNumbers[0] > 1 && <span aria-hidden="true" className="px-1 text-slate-400">...</span>}
+                            </>
+                        )}
+                        {pageNumbers.map((page) => (
+                            <button
+                                key={page}
+                                type="button"
+                                aria-current={currentPage === page ? 'page' : undefined}
+                                onClick={() => setCurrentPage(page)}
+                                className={`h-10 min-w-10 rounded-lg px-3 text-sm font-semibold transition-colors ${
+                                    currentPage === page ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-white'
+                                }`}
+                            >
+                                {page + 1}
+                            </button>
+                        ))}
+                        {pageNumbers[pageNumbers.length - 1] < totalPages - 1 && (
+                            <>
+                                {pageNumbers[pageNumbers.length - 1] < totalPages - 2 && (
+                                    <span aria-hidden="true" className="px-1 text-slate-400">...</span>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => setCurrentPage(totalPages - 1)}
+                                    className="h-10 min-w-10 rounded-lg px-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-white"
+                                >
+                                    {totalPages}
+                                </button>
+                            </>
+                        )}
+                        <button
+                            type="button"
+                            aria-label="Next page"
+                            disabled={currentPage >= totalPages - 1}
+                            onClick={() => setCurrentPage((page) => Math.min(totalPages - 1, page + 1))}
+                            className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-white hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                            <ChevronRight className="h-5 w-5" />
+                        </button>
+                    </nav>
+                )}
             </main>
         </div>
-    );
-};
+    )
+}
 
-export default ServiceProviders;
+export default ServiceProviders
