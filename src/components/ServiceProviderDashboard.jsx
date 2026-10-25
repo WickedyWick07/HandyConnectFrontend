@@ -6,6 +6,7 @@ import AuthContext from '../context/AuthContext';
 import api from '../utils/api';
 import Schedule from './Schedule';
 import NotificationBell from './NotificationBell';
+import { toast } from 'react-toastify';
 
 const ServiceProviderDashboard = () => {
     const { fetchCurrentUser } = useContext(AuthContext)
@@ -57,6 +58,23 @@ const ServiceProviderDashboard = () => {
             navigate('/view-booking', { state: { booking } })
         }
     }
+    const [updatingId, setUpdatingId] = useState(null);
+
+    const updateStatus = async (booking, status) => {
+        const labels = { completed: 'completed', incomplete: 'incomplete' };
+        if (!window.confirm(`Mark this job as ${labels[status] || status}?`)) return;
+
+        setUpdatingId(booking._id);
+        try {
+            await api.patch('/fetch-provider-bookings', { status, bookingId: booking._id });
+            toast.success(`Job marked as ${labels[status] || status}`);
+            await getBookings();
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Could not update the job');
+        } finally {
+            setUpdatingId(null);
+        }
+    };
 
     const sortedBookings = [...bookings].sort((a, b) => new Date(b.date) - new Date(a.date));
     const completedJobs = [...bookings].filter(booking => booking.status === 'completed')
@@ -190,28 +208,42 @@ const ServiceProviderDashboard = () => {
 
                 <section className='grid grid-cols-1 lg:grid-cols-2 gap-4 p-4'>
                     <div className='bg-white rounded p-4'>
-                        <h1 className='font-medium'>Active Jobs</h1>
-                        <hr />
-                        {activeJobs.map((job) => (
-                            <div key={job._id} className='flex items-center justify-between p-4'>
-                                <div className='flex items-center gap-4'>
-                                    <div>
-                                        <h1 className='font-medium'><span className='text-black font-semibold'>Service: </span>{job.service}</h1>
-                                        <p className='text-xs'>{job.location}</p>
-                                    </div>
+                    <h1 className='font-medium'>Active Jobs</h1>
+                    <hr />
+                    {activeJobs.length === 0 && (
+                        <p className='text-sm text-gray-400 py-6 text-center'>No active jobs</p>
+                    )}
+                    {activeJobs.map((job) => (
+                        <div key={job._id} className='p-4 border-b last:border-b-0'>
+                            <div className='flex items-center justify-between gap-3'>
+                                <div>
+                                    <h1 className='font-medium'><span className='text-black font-semibold'>Service: </span>{job.service}</h1>
+                                    <p className='text-xs'>{job.location}</p>
+                                    <p className='text-xs text-gray-500'>{job.date} at {job.time}</p>
                                 </div>
                                 <div className='bg-fuchsia-400 rounded-full p-2'>
-                                    <p className='text-xs font-medium text-fuchsia-900'><span className='text-black font-semibold'>Status: </span>{job.status}</p>
+                                    <p className='text-xs font-medium text-fuchsia-900'>{job.status}</p>
                                 </div>
                             </div>
-                        ))}
-                    </div>
-                    <div className="bg-white rounded p-4 h-auto lg:h-[500px] overflow-hidden">
-                        <h1 className="font-medium mb-2">Schedule</h1>
-                        <div className="h-full">
-                            <Schedule />
+                            <div className='flex gap-2 mt-3'>
+                                <button
+                                    disabled={updatingId === job._id}
+                                    onClick={() => updateStatus(job, 'completed')}
+                                    className='text-xs px-3 py-1 rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50'
+                                >
+                                    Mark completed
+                                </button>
+                                <button
+                                    disabled={updatingId === job._id}
+                                    onClick={() => updateStatus(job, 'incomplete')}
+                                    className='text-xs px-3 py-1 rounded bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50'
+                                >
+                                    Mark incomplete
+                                </button>
+                            </div>
                         </div>
-                    </div>
+                    ))}
+                </div>
                 </section>
             </main>
         </div>

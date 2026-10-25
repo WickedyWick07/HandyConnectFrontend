@@ -3,6 +3,7 @@ import api from "../utils/api";
 import AuthContext from "../context/AuthContext";
 import ProviderHeader from "../components/ProviderHeader";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 import LoadingPage from "./LoadingPage";
 
 const ProviderRequest = () => {
@@ -11,6 +12,7 @@ const ProviderRequest = () => {
   const { fetchCurrentUser } = useContext(AuthContext);
   const [customer, setCustomer] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [reopeningId, setReopeningId] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -59,6 +61,24 @@ const ProviderRequest = () => {
     navigate("/view-booking", { state: { booking } });
   };
 
+  // Put a completed / incomplete / declined job back to "accepted"
+  const reopenBooking = async (booking) => {
+    if (!window.confirm("Reopen this job and make it active again?")) return;
+    setReopeningId(booking._id);
+    try {
+      await api.patch("/fetch-provider-bookings", {
+        status: "accepted",
+        bookingId: booking._id,
+      });
+      toast.success("Job reopened");
+      await getBookings();
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Could not reopen the job");
+    } finally {
+      setReopeningId(null);
+    }
+  };
+
   if (loading) {
     return <LoadingPage />;
   }
@@ -89,6 +109,7 @@ const ProviderRequest = () => {
                 {bookings.map((booking) => {
                   const customerData =
                     customer.find((cust) => String(cust._id) === String(booking.user)) || {};
+                  const canReopen = ["completed", "incomplete", "declined"].includes(booking.status);
 
                   return (
                     <tr key={booking._id}>
@@ -99,7 +120,7 @@ const ProviderRequest = () => {
                       <td className="p-2 font-semibold text-xs">{booking.location}</td>
                       <td className="p-2 font-semibold text-xs">{booking.date}</td>
                       <td className="p-2 text-xs font-medium">
-                        {booking.status === "accepted" ? (
+                        {booking.status === "accepted" || booking.status === "completed" ? (
                           <div className="text-xs text-center rounded-full bg-green-200 text-green-700 inline-block px-4 py-1">
                             {booking.status}
                           </div>
@@ -107,10 +128,25 @@ const ProviderRequest = () => {
                           <div className="text-xs text-center rounded-full bg-red-200 text-red-700 inline-block px-4 py-1">
                             {booking.status}
                           </div>
+                        ) : booking.status === "incomplete" ? (
+                          <div className="text-xs text-center rounded-full bg-orange-200 text-orange-700 inline-block px-4 py-1">
+                            {booking.status}
+                          </div>
                         ) : (
                           <div className="text-xs text-center rounded-full bg-yellow-200 text-yellow-700 inline-block px-4 py-1">
                             {booking.status}
                           </div>
+                        )}
+
+                        {/* Reopen sits right under the status badge */}
+                        {canReopen && (
+                          <button
+                            disabled={reopeningId === booking._id}
+                            onClick={() => reopenBooking(booking)}
+                            className="block mt-2 text-xs underline text-purple-700 disabled:opacity-50"
+                          >
+                            {reopeningId === booking._id ? "Reopening..." : "Reopen"}
+                          </button>
                         )}
                       </td>
                       <td className="p-2 text-xs">
