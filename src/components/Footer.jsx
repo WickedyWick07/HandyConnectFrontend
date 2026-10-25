@@ -18,7 +18,7 @@ const Footer = () => {
           <li className="hover:underline cursor-pointer">FAQs</li>
           <li className="hover:underline cursor-pointer">Careers</li>
         </ul>
-        <p className="text-center text-xs mt-6">&copy; 2023 HandyConnect. All rights reserved.</p>
+        <p className="text-center text-xs mt-6">&copy; {new Date().getFullYear()} HandyConnect. All rights reserved.</p>
       </footer>
       
     </div>
