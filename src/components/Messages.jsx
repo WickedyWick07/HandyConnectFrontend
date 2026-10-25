@@ -3,6 +3,7 @@ import { io } from 'socket.io-client';
 import AuthContext from '../context/AuthContext';
 import CustomerHeader from './CustomerHeader';
 import ProviderHeader from './ProviderHeader';
+import Avatar from './Avatar';
 import api from '../utils/api';
 import { useNavigate } from 'react-router-dom';
 import LoadingPage from './LoadingPage';
@@ -32,7 +33,6 @@ const Messages = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // silent = true -> no full-page spinner (used for live refreshes)
     const fetchConversations = useCallback(async (silent = false) => {
         if (!userId) return;
         try {
@@ -82,7 +82,6 @@ const Messages = () => {
         return participantDetails.find(p => p._id === recipientId);
     };
 
-    // Live updates over the socket
     useEffect(() => {
         if (!userId) return;
 
@@ -95,7 +94,7 @@ const Messages = () => {
 
         const register = () => socket.emit('register', { userId });
         register();
-        socket.on('connect', register); // re-join the room after reconnects
+        socket.on('connect', register);
 
         socket.on('new_conversation', (conversation) => {
             setConversations(prev => {
@@ -124,7 +123,6 @@ const Messages = () => {
                     conversations: [updated, ...list.filter((_, i) => i !== idx)]
                 };
             });
-            // Unknown conversation: reload the list quietly
             setTimeout(() => { if (!found) fetchConversations(true); }, 0);
         });
 
@@ -135,7 +133,6 @@ const Messages = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userId]);
 
-    // Also refresh when a notification arrives (e.g. a message notification)
     useEffect(() => {
         const refresh = () => fetchConversations(true);
         window.addEventListener('notification:new', refresh);
@@ -163,61 +160,77 @@ const Messages = () => {
 
     const userConvos = Array.isArray(conversations.conversations) ? conversations.conversations : [];
 
+    const displayName = (r) =>
+        [r?.firstName, r?.lastName].filter(Boolean).join(' ') || r?.name || r?.email || 'Conversation';
+
+    const formatTime = (d) => {
+        if (!d) return '';
+        const date = new Date(d);
+        const sameDay = date.toDateString() === new Date().toDateString();
+        return sameDay
+            ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : date.toLocaleDateString([], { day: 'numeric', month: 'short' });
+    };
+
     return (
         <div className="bg-gray-100 min-h-screen">
             {user && user.role === 'customer' ? <CustomerHeader /> : <ProviderHeader />}
-            <main className="container mx-auto px-4 py-6">
-                <h1 className="text-3xl font-bold text-gray-800 mb-6">Messages</h1>
+            <main className="max-w-3xl mx-auto px-4 py-6">
+                <div className="flex items-end justify-between mb-4">
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-900">Messages</h1>
+                        <p className="text-xs text-gray-500">
+                            {userConvos.length} conversation{userConvos.length === 1 ? '' : 's'}
+                        </p>
+                    </div>
+                </div>
 
-                <div className="bg-white rounded-lg shadow-md p-6">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                     {userConvos.length > 0 ? (
-                        <div className="space-y-4">
+                        <ul className="divide-y divide-gray-100">
                             {userConvos.map((conversation) => {
                                 const recipient = getRecipientDetails(conversation);
+                                const name = displayName(recipient);
 
                                 return (
-                                    <div
-                                        onClick={() => goToChat(conversation)}
+                                    <li
                                         key={conversation._id}
-                                        className="p-4 bg-gray-50 rounded-lg border border-gray-200 shadow-sm hover:bg-gray-100 cursor-pointer"
+                                        onClick={() => goToChat(conversation)}
+                                        className="group flex items-center gap-4 p-4 cursor-pointer hover:bg-purple-50/50 transition"
                                     >
-                                        {recipient && (
-                                            <div className="mb-2">
-                                                <p className="text-lg font-medium text-gray-700">
-                                                    {recipient.email}
-                                                </p>
-                                                {recipient.profilePicture && (
-                                                    <img
-                                                        src={recipient.profilePicture}
-                                                        alt="Profile"
-                                                        className="w-10 h-10 rounded-full"
-                                                    />
-                                                )}
+                                        <Avatar path={recipient?.profilePicture} name={name} size="h-12 w-12" />
+
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex items-baseline justify-between gap-3">
+                                                <p className="font-semibold text-gray-900 truncate">{name}</p>
+                                                <span className="text-[11px] text-gray-400 shrink-0">
+                                                    {formatTime(conversation.lastMessageAt)}
+                                                </span>
                                             </div>
-                                        )}
-                                        <p className="text-lg font-medium text-gray-700">
-                                            {conversation.lastMessage}
-                                        </p>
-                                        <p className="text-sm text-gray-500">
-                                            Last updated: {new Date(conversation.lastMessageAt).toLocaleString()}
-                                        </p>
-                                        <div>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    deleteConversation(conversation);
-                                                }}
-                                                className="bg-red-500 text-white px-4 py-2 rounded mt-2"
-                                            >
-                                                Delete Conversation
-                                            </button>
+                                            <p className="text-sm text-gray-500 truncate mt-0.5">
+                                                {conversation.lastMessage || 'No messages yet'}
+                                            </p>
                                         </div>
-                                    </div>
+
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                deleteConversation(conversation);
+                                            }}
+                                            className="shrink-0 text-xs text-red-600 border border-red-200 rounded-md px-2.5 py-1 hover:bg-red-600 hover:text-white hover:border-red-600 transition sm:opacity-0 sm:group-hover:opacity-100"
+                                            aria-label="Delete conversation"
+                                        >
+                                            Delete
+                                        </button>
+                                    </li>
                                 );
                             })}
-                        </div>
+                        </ul>
                     ) : (
-                        <p className="text-gray-500">No conversations available.</p>
+                        <div className="text-center py-16 px-4">
+                            <p className="text-gray-400 font-medium">No conversations yet</p>
+                            <p className="text-xs text-gray-400 mt-1">Your chats with providers and customers will show up here.</p>
+                        </div>
                     )}
                 </div>
             </main>

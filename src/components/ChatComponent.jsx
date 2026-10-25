@@ -168,47 +168,55 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
         }
     };
 
+    const isMine = (msg) => String(msg.senderId) === String(currentUserId);
+
     return (
-        <div className="flex flex-col h-full bg-gray-50">
+        <div className="h-full w-full max-w-3xl mx-auto flex flex-col bg-white sm:border-x border-gray-200 shadow-sm">
             {/* Header */}
-            <div className="bg-blue-600 text-white py-4 px-6 flex items-center justify-between">
-                <div className="flex items-center">
-                    <h2 className="text-lg font-semibold">Chat</h2>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-white">
+                <div className="flex items-center gap-2">
+                    <h2 className="font-bold text-gray-900">Chat</h2>
                     {unreadMessages > 0 && (
-                        <span className="inline-flex items-center justify-center w-6 h-6 ml-2 text-xs font-bold text-white bg-red-600 rounded-full">
+                        <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[11px] font-bold text-white bg-red-600 rounded-full">
                             {unreadMessages}
                         </span>
                     )}
                 </div>
-                <span className="text-sm">{currentUserType === 'service provider' ? 'Service Provider' : 'Customer'}</span>
+                <span className="text-xs font-medium text-purple-700 bg-purple-50 rounded-full px-3 py-1">
+                    {currentUserType === 'service provider' ? 'Service Provider' : 'Customer'}
+                </span>
             </div>
 
             {/* Messages */}
             <div
                 ref={messagesContainerRef}
-                className="flex-1 overflow-y-auto p-4 space-y-4"
+                className="flex-1 overflow-y-auto px-4 py-5 space-y-3 bg-gray-50"
                 onClick={handleMessagesView}
                 onScroll={handleMessagesView}
             >
+                {messages.length === 0 && (
+                    <p className="text-center text-sm text-gray-400 pt-10">No messages yet. Say hello!</p>
+                )}
+
                 {[...messages]
                     .sort((a, b) => new Date(a.createdAt || a.timestamp) - new Date(b.createdAt || b.timestamp))
                     .map((msg, index) => (
                         <div
                             key={msg._id || msg.id || msg.tempId || index}
-                            className={`flex ${String(msg.senderId) === String(currentUserId) ? 'justify-end' : 'justify-start'}`}
+                            className={`flex ${isMine(msg) ? 'justify-end' : 'justify-start'}`}
                         >
                             <div
-                                className={`max-w-xs px-4 py-2 rounded-lg shadow ${
-                                    String(msg.senderId) === String(currentUserId)
-                                        ? `bg-blue-500 text-white rounded-br-none ${msg.pending ? 'opacity-70' : ''}`
-                                        : 'bg-gray-300 text-gray-900 rounded-bl-none'
+                                className={`max-w-[80%] sm:max-w-[70%] px-4 py-2 rounded-2xl shadow-sm break-words ${
+                                    isMine(msg)
+                                        ? `bg-purple-700 text-white rounded-br-sm ${msg.pending ? 'opacity-70' : ''}`
+                                        : 'bg-white text-gray-900 border border-gray-200 rounded-bl-sm'
                                 }`}
                             >
-                                <p>{msg.message}</p>
-                                <div className="flex justify-between items-center mt-1 text-xs opacity-75">
+                                <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
+                                <div className={`flex items-center justify-end gap-2 mt-1 text-[10px] ${isMine(msg) ? 'text-purple-200' : 'text-gray-400'}`}>
                                     {msg.pending && <span>Sending...</span>}
                                     {msg.error && <span className="text-red-300">Failed to send</span>}
-                                    <span className="ml-auto">
+                                    <span>
                                         {(msg.createdAt || msg.timestamp)
                                             ? new Date(msg.createdAt || msg.timestamp).toLocaleTimeString([], {
                                                 hour: '2-digit',
@@ -224,9 +232,9 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
             </div>
 
             {/* Input */}
-            <div className="bg-white py-4 px-6 border-t flex items-center">
+            <div className="flex items-center gap-3 px-4 py-3 border-t border-gray-200 bg-white">
                 <input
-                    className="flex-1 bg-gray-200 rounded-full px-4 py-2 text-gray-800 focus:outline-none focus:ring focus:ring-blue-300"
+                    className="flex-1 bg-gray-100 rounded-full px-4 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-300"
                     type="text"
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
@@ -234,8 +242,9 @@ const ChatComponent = ({ currentUserId, currentUserType, receiverId, chatId, boo
                     placeholder="Type a message..."
                 />
                 <button
-                    className="ml-4 bg-blue-600 text-white px-4 py-2 rounded-full shadow hover:bg-blue-700"
+                    className="bg-purple-700 text-white text-sm font-medium px-5 py-2.5 rounded-full shadow hover:bg-purple-800 disabled:opacity-50"
                     onClick={sendMessage}
+                    disabled={!message.trim()}
                 >
                     Send
                 </button>

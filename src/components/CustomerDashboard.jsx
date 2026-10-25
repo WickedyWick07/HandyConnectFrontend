@@ -1,5 +1,6 @@
 import NotificationBell from './NotificationBell';
 import RatingReview from './RatingReview';
+import Avatar from './Avatar';
 import { Bars3Icon } from '@heroicons/react/24/outline';
 import {
     Carpentry,
@@ -18,10 +19,64 @@ import { useNavigate } from 'react-router-dom';
 import SideMenu from './SideMenu';
 import api from '../utils/api';
 
-const imgUrl = (p) =>
-    !p ? '/default-placeholder.png'
-    : p.startsWith('http') ? p
-    : `${import.meta.env.VITE_IMAGES_API_URL}${p.startsWith('/') ? '' : '/'}${p}`;
+const STATUS_STYLES = {
+    pending: 'bg-yellow-100 text-yellow-800',
+    accepted: 'bg-green-100 text-green-800',
+    completed: 'bg-blue-100 text-blue-800',
+    declined: 'bg-red-100 text-red-800',
+    incomplete: 'bg-orange-100 text-orange-800',
+};
+
+const parseServices = (services) => {
+    try {
+        const first = Array.isArray(services) ? services[0] : services;
+        const parsed = typeof first === 'string' ? JSON.parse(first || '[]') : first;
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return Array.isArray(services) ? services : [];
+    }
+};
+
+function StatusBadge({ status }) {
+    return (
+        <span className={`text-xs font-semibold capitalize px-3 py-1 rounded-full ${STATUS_STYLES[status] || 'bg-gray-100 text-gray-700'}`}>
+            {status}
+        </span>
+    );
+}
+
+function Section({ title, count, children }) {
+    return (
+        <section className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <div className="flex items-center justify-between mb-4">
+                <h2 className="font-bold text-gray-900">{title}</h2>
+                {count > 0 && (
+                    <span className="text-xs font-semibold bg-gray-100 text-gray-600 rounded-full px-2.5 py-0.5">{count}</span>
+                )}
+            </div>
+            {children}
+        </section>
+    );
+}
+
+function Empty({ text }) {
+    return <p className="text-sm text-gray-400 text-center py-8">{text}</p>;
+}
+
+function BookingRow({ booking, children }) {
+    return (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border border-gray-100 rounded-lg p-4 hover:border-purple-200 transition">
+            <div className="min-w-0">
+                <h3 className="font-semibold text-sm text-gray-900 capitalize truncate">{booking.service}</h3>
+                <p className="text-xs text-gray-500 mt-0.5">{booking.date} at {booking.time}</p>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+                <StatusBadge status={booking.status} />
+                {children}
+            </div>
+        </div>
+    );
+}
 
 const CustomerDashboard = () => {
     const [bookings, setBookings] = useState([])
@@ -81,13 +136,11 @@ const CustomerDashboard = () => {
 
     useEffect(() => { getBookings(); }, [getBookings]);
 
-    // Refetch whenever a live notification arrives
     useEffect(() => {
         window.addEventListener('notification:new', getBookings);
         return () => window.removeEventListener('notification:new', getBookings);
     }, [getBookings]);
 
-    // Scroll the review form into view when it opens
     useEffect(() => {
         if (selectedBooking && reviewRef.current) {
             reviewRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -95,7 +148,6 @@ const CustomerDashboard = () => {
     }, [selectedBooking]);
 
     const submitReview = async ({ rating, review }) => {
-        // RatingReview shows the server's error message if this throws
         await api.post('/reviews', {
             bookingId: selectedBooking._id,
             rating,
@@ -126,187 +178,167 @@ const CustomerDashboard = () => {
     ];
 
     const byDate = (a, b) => new Date(a.date) - new Date(b.date);
+    const pending = bookings.filter((b) => b.status === 'pending').sort(byDate).slice(0, 3);
+    const accepted = bookings.filter((b) => b.status === 'accepted').sort(byDate).slice(0, 3);
     const completed = bookings.filter((b) => b.status === 'completed');
+
+    const detailsButton = (booking) => (
+        <button
+            onClick={() => viewBooking(booking)}
+            className="text-xs font-medium text-purple-700 border border-purple-700 rounded-md px-3 py-1.5 hover:bg-purple-700 hover:text-white transition"
+        >
+            View Details
+        </button>
+    );
 
     return (
         <div className='flex bg-slate-100 min-h-screen'>
             <SideMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
-            <main className="flex-1 min-w-0 p-4 max-w-7xl mx-auto w-full">
-                <section className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-4">
-                    <div className='flex items-center gap-3'>
-                        <button
-                            className="lg:hidden"
-                            onClick={() => setIsMenuOpen(true)}
-                            aria-label="Open menu"
-                        >
+            <main className="flex-1 min-w-0 p-4 sm:p-6 max-w-6xl mx-auto w-full space-y-6">
+                {/* Top bar */}
+                <header className="flex items-center justify-between gap-4 bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5">
+                    <div className='flex items-center gap-3 min-w-0'>
+                        <button className="lg:hidden" onClick={() => setIsMenuOpen(true)} aria-label="Open menu">
                             <Bars3Icon className="size-7 text-gray-700" />
                         </button>
-                        <div className='flex flex-col'>
-                            <h1 className='font-bold'>
+                        <div className='min-w-0'>
+                            <h1 className='font-bold text-lg truncate'>
                                 Welcome back, {user ? user.firstName : 'Guest'}!
                             </h1>
-                            <p className='text-xs font-light'>
-                                Find the perfect service provider for your needs
-                            </p>
+                            <p className='text-xs text-gray-500'>Find the perfect service provider for your needs</p>
                         </div>
                     </div>
-                    <div className='flex justify-end gap-4'>
-                        <NotificationBell />
-                    </div>
-                </section>
+                    <NotificationBell />
+                </header>
 
-                <section className="mb-6 min-w-0">
+                {/* Services scroller */}
+                <section>
+                    <h2 className="font-bold text-gray-900 mb-3">Browse services</h2>
                     <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-hide snap-x snap-mandatory">
                         {services.map((service, i) => (
-                            <div
+                            <button
                                 key={i}
+                                type="button"
                                 onClick={() => goToService(service)}
-                                className="min-w-[260px] sm:min-w-[280px] bg-white rounded-lg shadow p-5 cursor-pointer hover:shadow-lg transition snap-start flex-shrink-0"
+                                className="w-64 shrink-0 snap-start text-left bg-white rounded-xl border border-gray-100 shadow-sm p-5 hover:shadow-md hover:border-purple-200 transition"
                             >
-                                <div className="flex justify-center">
-                                    <img src={service.Icon} alt={service.Title} className="h-6 w-6" />
+                                <div className="h-11 w-11 rounded-full bg-purple-50 flex items-center justify-center mb-3">
+                                    <img src={service.Icon} alt="" className="h-5 w-5" />
                                 </div>
-                                <h2 className="text-center font-semibold mt-3">{service.Title}</h2>
-                                <p className="text-sm text-gray-600 text-center mt-2">{service.Description}</p>
-                            </div>
+                                <h3 className="font-semibold text-gray-900">{service.Title}</h3>
+                                <p className="text-xs text-gray-500 mt-1 line-clamp-2">{service.Description}</p>
+                            </button>
                         ))}
                     </div>
                 </section>
 
-                <section className="bg-white rounded-lg shadow mt-6">
-                    <h1 className='text-black font-bold text-md px-4 py-2'>Pending Bookings</h1>
-                    <div className='p-4'>
-                        {bookings.some(b => b.status === 'pending') ? bookings.filter((booking) => booking.status === 'pending').sort(byDate).slice(0, 3).map((booking) => (
-                            <div key={booking._id} className='border border-gray-100 my-2 rounded'>
-                                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-4">
-                                    <div className='flex items-center'>
-                                        <div className='flex flex-col'>
-                                            <h1 className='font-medium text-sm'>{booking.service}</h1>
-                                            <p className='text-xs font-light'>Booked for: {booking.date} at {booking.time}</p>
-                                        </div>
-                                    </div>
-                                    <div className='bg-yellow-400 px-3 py-2 rounded-full text-xs font-semibold '>
-                                        <p>{booking.status}</p>
-                                    </div>
-                                    <div className='m-4  hover:bg-purple-700 border border-purple-700 rounded'>
-                                        <button onClick={() => viewBooking(booking)} className='text-xs hover:text-white font-medium text-purple-700 px-4 py-1'>
-                                            View Details
-                                        </button>
-                                    </div>
-                                </div>
+                {/* Pending + Accepted side by side on large screens */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <Section title="Pending Bookings" count={pending.length}>
+                        {pending.length > 0 ? (
+                            <div className="space-y-3">
+                                {pending.map((b) => (
+                                    <BookingRow key={b._id} booking={b}>{detailsButton(b)}</BookingRow>
+                                ))}
                             </div>
-                        )) : <p className="text-xl sm:text-3xl lg:text-5xl text-gray-200 text-center py-10 font-bold">No Pending Bookings</p>}
-                    </div>
-                </section>
+                        ) : <Empty text="No pending bookings" />}
+                    </Section>
 
-                <section className="bg-white rounded-lg shadow mt-6">
-                    <h1 className='text-black font-bold text-md px-4 py-2'>Accepted Bookings</h1>
-                    <div className='p-4'>
-                        {bookings.some(b => b.status === 'accepted') ? bookings.filter((booking) => booking.status === 'accepted').sort(byDate).slice(0, 3).map((booking) => (
-                            <div key={booking._id} className='border border-gray-100 my-2 rounded'>
-                                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-4">
-                                    <div className='flex items-center'>
-                                        <div className='flex flex-col'>
-                                            <h1 className='font-medium text-sm'>{booking.service}</h1>
-                                            <p className='text-xs font-light'>Booked for: {booking.date} at {booking.time}</p>
-                                        </div>
-                                    </div>
-                                    <div className='bg-yellow-400 px-3 py-2 rounded-full text-xs font-semibold '>
-                                        <p>{booking.status}</p>
-                                    </div>
-                                    <div className='m-4  hover:bg-purple-700 border border-purple-700 rounded'>
-                                        <button onClick={() => viewBooking(booking)} className='text-xs hover:text-white font-medium text-purple-700 px-4 py-1'>
-                                            View Details
-                                        </button>
-                                    </div>
-                                </div>
+                    <Section title="Accepted Bookings" count={accepted.length}>
+                        {accepted.length > 0 ? (
+                            <div className="space-y-3">
+                                {accepted.map((b) => (
+                                    <BookingRow key={b._id} booking={b}>{detailsButton(b)}</BookingRow>
+                                ))}
                             </div>
-                        )) : <p className="text-xl sm:text-3xl lg:text-5xl text-gray-200 text-center py-10 font-bold">No Accepted Bookings</p>}
-                    </div>
-                </section>
+                        ) : <Empty text="No accepted bookings" />}
+                    </Section>
+                </div>
 
-                <section className="bg-white rounded-lg shadow mt-6">
-                    <h1 className="text-black font-bold text-md px-4 py-2">Completed Bookings</h1>
-                    <div className="p-4">
-                        {completed.length > 0 ? (
-                            completed.map((booking) => (
-                                <div
-                                    key={booking._id}
-                                    className="border border-gray-100 my-2 rounded p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
-                                >
-                                    <div>
-                                        <h2 className="font-medium text-sm">{booking.service}</h2>
-                                        <p className="text-xs text-gray-500">
-                                            Booked for: {booking.date} at {booking.time}
-                                        </p>
-                                        <p className="text-sm text-green-700 font-semibold mt-1">Completed</p>
-                                    </div>
-
-                                    {reviewed[booking._id] ? (
-                                        <span className="text-sm font-medium text-yellow-600 bg-yellow-50 border border-yellow-200 px-4 py-2 rounded">
-                                            Reviewed ★ {reviewed[booking._id]}
+                {/* Completed */}
+                <Section title="Completed Bookings" count={completed.length}>
+                    {completed.length > 0 ? (
+                        <div className="space-y-3">
+                            {completed.map((b) => (
+                                <BookingRow key={b._id} booking={b}>
+                                    {reviewed[b._id] ? (
+                                        <span className="text-xs font-semibold text-yellow-700 bg-yellow-50 border border-yellow-200 px-3 py-1.5 rounded-md">
+                                            Reviewed ★ {reviewed[b._id]}
                                         </span>
                                     ) : (
                                         <button
                                             type="button"
-                                            onClick={() => setSelectedBooking(booking)}
-                                            className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded"
+                                            onClick={() => setSelectedBooking(b)}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium px-3 py-1.5 rounded-md"
                                         >
                                             Rate &amp; Review
                                         </button>
                                     )}
-                                </div>
-                            ))
-                        ) : (
-                            <p className="text-sm text-gray-500 py-4">
-                                You don't have any completed bookings yet.
-                            </p>
-                        )}
-                    </div>
-                </section>
+                                </BookingRow>
+                            ))}
+                        </div>
+                    ) : <Empty text="You don't have any completed bookings yet" />}
+                </Section>
 
                 {selectedBooking && (
-                    <section ref={reviewRef} className="bg-white rounded-lg shadow mt-6 p-4">
-                        <div className="flex justify-between items-center mb-4">
+                    <section ref={reviewRef} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                        <div className="flex justify-between items-center mb-2">
                             <h2 className="font-bold text-lg">Write Your Review</h2>
-                            <button
-                                type="button"
-                                onClick={() => setSelectedBooking(null)}
-                                className="text-gray-600 hover:text-gray-900"
-                            >
+                            <button type="button" onClick={() => setSelectedBooking(null)} className="text-sm text-gray-500 hover:text-gray-900">
                                 Close
                             </button>
                         </div>
-
-                        <p className="text-sm text-gray-600 mb-4">Service: {selectedBooking.service}</p>
-
+                        <p className="text-sm text-gray-600 mb-4 capitalize">Service: {selectedBooking.service}</p>
                         <RatingReview providerName="your service provider" onSubmit={submitReview} />
                     </section>
                 )}
 
-                <section className='bg-white m-4 rounded flex flex-col'>
-                    <h1 className='text-black font-bold text-md px-4 py-2'>Recommended Providers</h1>
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                        {serviceProviders.slice(0, 3).map((providers, i) => (
-                            <div key={i} className="bg-white rounded-lg p-4 shadow flex flex-col items-center text-center">
-                                <div className='flex items-center'>
-                                    <img
-                                        src={imgUrl(providers.profilePicture)}
-                                        alt={providers.companyName || 'Provider profile'}
-                                        className="w-10 h-10 rounded-full object-cover"
-                                        onError={(e) => {
-                                            e.target.onerror = null;
-                                            e.target.src = '/default-placeholder.png';
-                                        }}
-                                    />
-                                    <div className='flex flex-col m-1'>
-                                        <h1 className='text-sm font-medium'>{providers.companyName}</h1>
-                                    </div>
-                                </div>
-                                <p className='text-xs'>{providers.description}</p>
-                            </div>
-                        ))}
-                    </div>
+                {/* Recommended providers */}
+                <section>
+                    <h2 className="font-bold text-gray-900 mb-3">Recommended Providers</h2>
+                    {serviceProviders.length === 0 ? (
+                        <div className="bg-white rounded-xl border border-gray-100 p-8">
+                            <Empty text="No providers to show yet" />
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                            {serviceProviders.slice(0, 3).map((p) => {
+                                const svc = parseServices(p.services);
+                                return (
+                                    <article key={p._id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex flex-col h-full hover:shadow-md transition">
+                                        <div className="flex items-center gap-3">
+                                            <Avatar path={p.profilePicture} name={p.companyName} size="h-14 w-14" text="text-lg" />
+                                            <div className="min-w-0">
+                                                <h3 className="font-semibold text-gray-900 truncate">{p.companyName}</h3>
+                                                {p.verified ? (
+                                                    <span className="text-[11px] font-medium text-green-700">✓ Verified</span>
+                                                ) : (
+                                                    <span className="text-[11px] text-gray-400">Not yet verified</span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <p className="text-xs text-gray-600 mt-3 line-clamp-3 flex-1">{p.description}</p>
+
+                                        {svc.length > 0 && (
+                                            <div className="flex flex-wrap gap-1.5 mt-3">
+                                                {svc.slice(0, 3).map((s) => (
+                                                    <span key={s} className="text-[11px] capitalize bg-purple-50 text-purple-700 rounded-full px-2.5 py-0.5">{s}</span>
+                                                ))}
+                                                {svc.length > 3 && (
+                                                    <span className="text-[11px] text-gray-400 py-0.5">+{svc.length - 3} more</span>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        <p className="text-[11px] text-gray-500 mt-3 pt-3 border-t border-gray-100">
+                                            {p.yearsInService} {p.yearsInService === 1 ? 'year' : 'years'} in service
+                                        </p>
+                                    </article>
+                                );
+                            })}
+                        </div>
+                    )}
                 </section>
             </main>
         </div>

@@ -13,7 +13,7 @@ import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
 import LoadingPage from '../components/LoadingPage'
-
+import Avatar from '../components/Avatar'
 // Fix for default marker icons in Leaflet
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
@@ -394,17 +394,7 @@ const ServiceProviders = () => {
                             <div className="bg-white w-64 p-4 border rounded shadow-sm hover:shadow-md transition-shadow" key={i}>
                                 <div className="flex flex-col items-center">
                                     <div className="flex items-center gap-2">
-                                    <img
-                                                                src={provider.profilePicture?.startsWith('http')
-                                                                    ? provider.profilePicture
-                                                                    : `${import.meta.env.VITE_IMAGES_API_URL}${provider.profilePicture}` || `https://localhost:5000${provider.profilePicture}`}
-                                                                alt={provider.companyName || 'Provider profile'}
-                                                                className="w-7 h-7 object-cover rounded-full"
-                                                                onError={(e) => {
-                                                                    e.target.onerror = null;
-                                                                    e.target.src = `https://localhost:5000${provider.profilePicture}`;
-                                                                }}
-                                                            />
+                                    <Avatar path={provider.profilePicture} name={provider.companyName} size="h-10 w-10" text="text-sm" />
                                         <h1 className="text-md font-semibold">
                                             {provider.companyName}
                                         </h1>

@@ -68,18 +68,22 @@ function CustomerChat() {
     }, [chatId, user, provider, bookingId]);
 
     return (
-        <div>
+        <div className="flex flex-col h-screen bg-gray-100">
             <CustomerHeader />
 
-            {user && provider && (
-                <ChatComponent
-                    currentUserId={user._id}
-                    bookingId={bookingId}
-                    currentUserType={user.role}
-                    receiverId={provider}
-                    chatId={chatId}
-                />
-            )}
+            <div className="flex-1 min-h-0">
+                {user && provider ? (
+                    <ChatComponent
+                        currentUserId={user._id}
+                        bookingId={bookingId}
+                        currentUserType={user.role}
+                        receiverId={provider}
+                        chatId={chatId}
+                    />
+                ) : (
+                    <p className="text-center text-gray-400 py-16">Loading chat...</p>
+                )}
+            </div>
         </div>
     );
 }
