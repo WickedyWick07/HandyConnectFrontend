@@ -11,12 +11,12 @@ import {
     HomeAutomation,
     ExteriorMaintenance,
 } from '../constants/Services';
-import { useContext, useEffect, useMemo, useState, useCallback } from 'react';
+import { useContext, useEffect, useState, useCallback, useRef } from 'react';
+import { toast } from 'react-toastify';
 import AuthContext from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import SideMenu from './SideMenu';
 import api from '../utils/api';
-
 
 const imgUrl = (p) =>
     !p ? '/default-placeholder.png'
@@ -31,6 +31,8 @@ const CustomerDashboard = () => {
     const [serviceProviders, setServiceProviders] = useState([])
     const [isMenuOpen, setIsMenuOpen] = useState(false)
     const [selectedBooking, setSelectedBooking] = useState(null);
+    const [reviewed, setReviewed] = useState({}); // { bookingId: rating }
+    const reviewRef = useRef(null);
 
     useEffect(() => {
         const fetchUser = async () => {
@@ -51,8 +53,20 @@ const CustomerDashboard = () => {
             }
         };
 
+        const fetchMyReviews = async () => {
+            try {
+                const res = await api.get('/reviews/mine');
+                const map = {};
+                (res.data.data || []).forEach((r) => { map[r.booking] = r.rating; });
+                setReviewed(map);
+            } catch (error) {
+                console.error("Error fetching my reviews:", error);
+            }
+        };
+
         fetchUser();
         fetchAllProviders();
+        fetchMyReviews();
     }, []);
 
     const getBookings = useCallback(async () => {
@@ -73,35 +87,24 @@ const CustomerDashboard = () => {
         return () => window.removeEventListener('notification:new', getBookings);
     }, [getBookings]);
 
-    // Notifications for the bell: built from the bookings already loaded above
-    const notifications = useMemo(() => {
-        const updates = {
-            accepted: {
-                type: 'success',
-                text: (service) => `Your ${service} booking was accepted.`,
-            },
-            declined: {
-                type: 'error',
-                text: (service) => `Your ${service} booking was declined.`,
-            },
-            completed: {
-                type: 'success',
-                text: (service) => `Your ${service} booking is complete. You can now rate and review it.`,
-            },
-        };
+    // Scroll the review form into view when it opens
+    useEffect(() => {
+        if (selectedBooking && reviewRef.current) {
+            reviewRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, [selectedBooking]);
 
-        return bookings
-            .filter((booking) => updates[booking.status])
-            .map((booking) => ({
-                id: `${booking._id}-${booking.status}`,
-                type: updates[booking.status].type,
-                message: updates[booking.status].text(booking.service),
-                time: booking.updatedAt || booking.createdAt,
-                booking,
-            }))
-            .sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0))
-            .slice(0, 10);
-    }, [bookings]);
+    const submitReview = async ({ rating, review }) => {
+        // RatingReview shows the server's error message if this throws
+        await api.post('/reviews', {
+            bookingId: selectedBooking._id,
+            rating,
+            review,
+        });
+        setReviewed((prev) => ({ ...prev, [selectedBooking._id]: rating }));
+        toast.success('Thanks! Your review has been submitted.');
+        setSelectedBooking(null);
+    };
 
     const viewBooking = (booking) => {
         navigate('/view-customer-booking', { state: { booking } })
@@ -123,6 +126,7 @@ const CustomerDashboard = () => {
     ];
 
     const byDate = (a, b) => new Date(a.date) - new Date(b.date);
+    const completed = bookings.filter((b) => b.status === 'completed');
 
     return (
         <div className='flex bg-slate-100 min-h-screen'>
@@ -147,8 +151,6 @@ const CustomerDashboard = () => {
                         </div>
                     </div>
                     <div className='flex justify-end gap-4'>
-
-
                         <NotificationBell />
                     </div>
                 </section>
@@ -170,7 +172,6 @@ const CustomerDashboard = () => {
                         ))}
                     </div>
                 </section>
-
 
                 <section className="bg-white rounded-lg shadow mt-6">
                     <h1 className='text-black font-bold text-md px-4 py-2'>Pending Bookings</h1>
@@ -223,77 +224,65 @@ const CustomerDashboard = () => {
                         )) : <p className="text-xl sm:text-3xl lg:text-5xl text-gray-200 text-center py-10 font-bold">No Accepted Bookings</p>}
                     </div>
                 </section>
-                
-<section className="bg-white rounded-lg shadow mt-6">
-  <h1 className="text-black font-bold text-md px-4 py-2">
-    Completed Bookings
-  </h1>
 
-  <div className="p-4">
-    {bookings.filter((booking) => booking.status === 'completed').length > 0 ? (
-      bookings
-        .filter((booking) => booking.status === 'completed')
-        .map((booking) => (
-          <div
-            key={booking._id}
-            className="border border-gray-100 my-2 rounded p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
-          >
-            <div>
-              <h2 className="font-medium text-sm">{booking.service}</h2>
-              <p className="text-xs text-gray-500">
-                Booked for: {booking.date} at {booking.time}
-              </p>
-              <p className="text-sm text-green-700 font-semibold mt-1">
-                Completed
-              </p>
-            </div>
+                <section className="bg-white rounded-lg shadow mt-6">
+                    <h1 className="text-black font-bold text-md px-4 py-2">Completed Bookings</h1>
+                    <div className="p-4">
+                        {completed.length > 0 ? (
+                            completed.map((booking) => (
+                                <div
+                                    key={booking._id}
+                                    className="border border-gray-100 my-2 rounded p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+                                >
+                                    <div>
+                                        <h2 className="font-medium text-sm">{booking.service}</h2>
+                                        <p className="text-xs text-gray-500">
+                                            Booked for: {booking.date} at {booking.time}
+                                        </p>
+                                        <p className="text-sm text-green-700 font-semibold mt-1">Completed</p>
+                                    </div>
 
-            <button
-              type="button"
-              onClick={() => setSelectedBooking(booking)}
-              className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded"
-            >
-              Rate &amp; Review
-            </button>
-          </div>
-        ))
-    ) : (
-      <p className="text-sm text-gray-500 py-4">
-        You don't have any completed bookings yet.
-      </p>
-    )}
-  </div>
-</section>
+                                    {reviewed[booking._id] ? (
+                                        <span className="text-sm font-medium text-yellow-600 bg-yellow-50 border border-yellow-200 px-4 py-2 rounded">
+                                            Reviewed ★ {reviewed[booking._id]}
+                                        </span>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedBooking(booking)}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded"
+                                        >
+                                            Rate &amp; Review
+                                        </button>
+                                    )}
+                                </div>
+                            ))
+                        ) : (
+                            <p className="text-sm text-gray-500 py-4">
+                                You don't have any completed bookings yet.
+                            </p>
+                        )}
+                    </div>
+                </section>
 
-{selectedBooking && (
-  <section className="bg-white rounded-lg shadow mt-6 p-4">
-    <div className="flex justify-between items-center mb-4">
-      <h2 className="font-bold text-lg">Write Your Review</h2>
-      <button
-        type="button"
-        onClick={() => setSelectedBooking(null)}
-        className="text-gray-600 hover:text-gray-900"
-      >
-        Close
-      </button>
-    </div>
+                {selectedBooking && (
+                    <section ref={reviewRef} className="bg-white rounded-lg shadow mt-6 p-4">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="font-bold text-lg">Write Your Review</h2>
+                            <button
+                                type="button"
+                                onClick={() => setSelectedBooking(null)}
+                                className="text-gray-600 hover:text-gray-900"
+                            >
+                                Close
+                            </button>
+                        </div>
 
-    <p className="text-sm text-gray-600 mb-4">
-      Service: {selectedBooking.service}
-    </p>
+                        <p className="text-sm text-gray-600 mb-4">Service: {selectedBooking.service}</p>
 
-    <RatingReview
-      providerName="your service provider"
-      onSubmit={(reviewData) => {
-        console.log("Review prepared:", {
-          bookingId: selectedBooking._id,
-          providerId: selectedBooking.service_provider,
-          ...reviewData,
-        });
-      }}
-    />
-  </section>
-)}
+                        <RatingReview providerName="your service provider" onSubmit={submitReview} />
+                    </section>
+                )}
 
                 <section className='bg-white m-4 rounded flex flex-col'>
                     <h1 className='text-black font-bold text-md px-4 py-2'>Recommended Providers</h1>
